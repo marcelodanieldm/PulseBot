@@ -1,25 +1,81 @@
-# 🤖 PulseBot - Job Search Automation
+# 🤖 PulseBot - Job Search Automation v2.1.0
 
-Bot automatizado que busca ofertas de empleo en JSearch API y las envía a Telegram.
+Bot inteligente que busca ofertas de empleo con **Business Intelligence Layer** y las envía a Telegram automáticamente.
 
-## 📋 Características
+## ✨ Características
 
-- ✅ Búsqueda automatizada de empleos usando JSearch API (RapidAPI)
-- ✅ Filtrado por criterios específicos: Software Engineer, Remote, LatAm, Startups
+### 🔍 Búsqueda Inteligente
+- ✅ Búsqueda automatizada usando JSearch API (RapidAPI)
+- ✅ Filtrado por criterios: Software Engineer, Remote, LatAm, Startups
 - ✅ Filtrado por plataformas ATS: Greenhouse, Lever, BambooHR
-- ✅ **Reputation Check**: Análisis de salud de la empresa
-  - 🔍 Búsqueda de employee reviews en DuckDuckGo
-  - 📊 Análisis de sentimiento con TextBlob
-  - 🔥 Indicador de probabilidad de contratación
-  - 📈 Contador de vacantes activas por empresa
-- ✅ Envío automático a canal/chat de Telegram
-- ✅ Formateo atractivo de mensajes con toda la información relevante
 
-## 🚀 Instalación
+### 🧠 Business Intelligence Layer (v2.1.0)
+- ⭐ **Glassdoor Rating Extraction**: Rating automático de empresas (0.0-5.0)
+- 🔥 **Growth Indicator**: Detecta empresas de alto crecimiento (>3 vacantes en 7 días)
+- 💬 **Sentiment Analysis**: Análisis NLP de job descriptions (4 niveles)
+- ⚡ **Pulse Score**: Métrica compuesta 1-10 para comparar ofertas
+- 💡 **Tips Personalizados**: Recomendaciones inteligentes basadas en características
 
-### Opción 1: Ejecución Local
+### 🏢 Clasificación Automática
+- 🚀 **STARTUP**: Empresas en etapa de crecimiento
+- 🏢 **FACTORY/STAFFING**: Consultoras y outsourcing
+- 💳 **FINTECH/AI**: Fintech y tecnología de punta
+- 📦 **GENERAL**: Resto de empresas
 
-Para ejecutar el bot localmente en tu computadora:
+### 🎯 Detección de LatAm
+- 🔥 Marca ofertas que buscan talento de LatAm explícitamente
+- Palabras clave: "latin america", "latam", "argentina", "colombia", etc.
+
+### 📊 Reputation Check
+- 🔍 Búsqueda de employee reviews en DuckDuckGo
+- 📈 Contador de vacantes activas por empresa
+- 🤖 Indicador de probabilidad de contratación
+
+### 🚀 Automatización Total
+- ⏰ Ejecución automática cada 4 horas con GitHub Actions
+- 💾 Persistencia de base de datos en Git (cero duplicados)
+- 📱 Envío automático a Telegram
+- ✅ 100% gratis con GitHub Actions (2000 min/mes)
+
+## 🚀 Instalación y Deployment
+
+### ⭐ Opción 1: Automatización con GitHub Actions (Recomendado)
+
+**Tu bot se ejecutará automáticamente cada 4 horas en la nube - 100% GRATIS**
+
+#### 📋 Requisitos Previos
+- Cuenta de GitHub (gratuita)
+- Bot de Telegram creado ([@BotFather](https://t.me/botfather))
+- API Key de RapidAPI JSearch
+
+#### 🎯 Guías de Deployment
+
+1. **📖 [GITHUB_ACTIONS_DEPLOY.md](GITHUB_ACTIONS_DEPLOY.md)** - Guía rápida con checklist
+2. **📖 [GITHUB_SECRETS_GUIDE.md](GITHUB_SECRETS_GUIDE.md)** - Guía detallada paso a paso
+
+#### ⚡ Pasos Rápidos
+
+1. **Configura 3 GitHub Secrets** (5 min)
+   - Ve a: Settings → Secrets and variables → Actions
+   - Agrega: `RAPIDAPI_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+
+2. **Habilita Permisos de Escritura** (1 min)
+   - Settings → Actions → General
+   - Workflow permissions → "Read and write permissions"
+
+3. **Ejecuta el Workflow** (Primera vez)
+   - Actions → "PulseBot Automated Job Search"
+   - Run workflow → main
+
+4. **¡Listo!** 🎉
+   - El bot buscará ofertas cada 4 horas automáticamente
+   - Recibirás notificaciones en Telegram con BI completo
+
+---
+
+### 💻 Opción 2: Ejecución Local
+
+Para probar el bot localmente en tu computadora:
 
 ### 1. Clonar el repositorio
 
@@ -95,9 +151,24 @@ TELEGRAM_CHAT_ID=tu_chat_id_numerico
 
 ### Opción 2: Despliegue Automático en GitHub Actions (Recomendado) 🌟
 
-**Para que el bot se ejecute automáticamente cada 6 horas en la nube de forma gratuita:**
+**ACTUALIZADO A v2.1.0:** Ahora con automatización completa cada 4 horas
 
-👉 **Guía completa**: [DEPLOYMENT.md](DEPLOYMENT.md)
+👉 **Deployment Rápido**: [GITHUB_ACTIONS_DEPLOY.md](GITHUB_ACTIONS_DEPLOY.md)  
+👉 **Guía de Secrets**: [GITHUB_SECRETS_GUIDE.md](GITHUB_SECRETS_GUIDE.md)
+
+#### ✨ Ventajas de GitHub Actions
+- ⏰ Se ejecuta automáticamente cada 4 horas
+- 💾 Base de datos persistente (cero duplicados)
+- 🆓 100% gratis (2000 min/mes con GitHub)
+- 🔒 Secrets seguros y encriptados
+- 📊 Logs completos de cada ejecución
+- 🚀 Sin servidor ni infraestructura que mantener
+
+#### 🎯 Proceso de Setup (10 minutos)
+1. Configura 3 GitHub Secrets (5 min)
+2. Habilita permisos de escritura (1 min)
+3. Ejecuta el workflow manualmente (primera vez)
+4. ¡Listo! El bot trabajará solo 🎉
 
 **Pasos rápidos:**
 1. Sube el proyecto a GitHub
@@ -174,29 +245,87 @@ python job_search.py
 
 ### Formato de mensaje en Telegram
 
-Cada oferta incluye:
-- 🔵 Título del puesto
-- 🏢 Empresa
-- 📍 Ubicación
-- 💰 Salario (si disponible)
-- 🔗 Plataforma ATS
-- 📊 **Análisis de Empresa**:
-  - Número de vacantes activas
-  - Sentimiento de la descripción
-  - Review de empleados (si se encuentra)
-- 🔥 **Posibilidad de contratación**: Alta/Media/Baja
-- Link de aplicación
+Cada oferta incluye **Business Intelligence completo**:
+
+```
+🔥 [🚀 STARTUP] Senior Full Stack Engineer
+
+🏢 Empresa: Google
+💰 Nicho: AI/ML
+📍 Ubicación: Remote, Global
+💰 $100,000 - $150,000 USD
+🛠️ ATS: Lever
+
+📊 Análisis de Empresa:
+   • Vacantes activas: 5
+   • Rating Glassdoor: 4.3/5 ⭐
+   • 🔥 HIGH GROWTH: 5 vacantes en 7 días
+   • Sentimiento: Positivo
+
+🔥 Posibilidad de contratación: Alta
+
+⚡ Pulse Score: [⭐⭐⭐⭐⭐⭐⭐⭐--] 8/10
+💡 Tip: Esta empresa está escalando rápido, excelente rating
+      - ¡Gran oportunidad! 🎯
+
+🔗 Aplicar aquí: https://...
+```
+
+## ⚡ Pulse Score: Métrica Inteligente
+
+El **Pulse Score** es una métrica compuesta (1-10) que evalúa cada oferta con 5 factores:
+
+### 📊 Fórmula de Scoring
+
+| Factor | Puntos | Condición |
+|--------|--------|-----------|
+| 🚀 Es STARTUP | +3 | Empresa en etapa de crecimiento |
+| ⭐ Rating Alto | +2 | Glassdoor > 4.0/5.0 |
+| 🔥 Alto Crecimiento | +3 | >2 vacantes activas |
+| 🌎 LatAm Match | +2 | Busca talento LatAm explícitamente |
+| 💬 Sentimiento Positivo | +1 | Job description muy positiva |
+| ⚠️ Sentimiento Negativo | -1 | Job description negativa |
+
+### 🎯 Interpretación del Score
+
+- **8-10**: ¡Gran oportunidad! 🎯 - Aplica ya
+- **6-7**: Vale la pena aplicar - Buena opción
+- **4-5**: Investiga más antes de aplicar
+- **1-3**: Procede con cautela
+
+### 💡 Tips Personalizados
+
+Cada score incluye un **tip personalizado** basado en las características detectadas:
+
+```
+Score 10/10:
+"Esta empresa está escalando rápido, excelente rating (4.5/5),
+ busca talento LatAm específicamente - ¡Gran oportunidad! 🎯"
+
+Score 4/10:
+"Revisa bien la descripción y cultura de la empresa
+ - Investiga más antes de aplicar"
+```
 
 ## 📝 Estructura del Proyecto
 
 ```
 PulseBot/
-├── job_search.py      # Script principal
-├── requirements.txt   # Dependencias de Python
-├── .env.example      # Plantilla de configuración
-├── .env              # Tu configuración (NO subir a git)
-├── .gitignore        # Archivos ignorados por git
-└── README.md         # Este archivo
+├── .github/
+│   └── workflows/
+│       └── pulsebot_run.yml          # Workflow de GitHub Actions
+├── job_search.py                      # Script principal con BI Layer
+├── test_business_intelligence.py      # Tests de BI (6/6 passing)
+├── test_clasificacion.py              # Tests de clasificación
+├── test_github_actions.py             # Script de verificación
+├── processed_jobs.db                  # Base de datos SQLite (auto-actualiza)
+├── requirements.txt                   # Dependencias de Python
+├── .env.example                       # Plantilla de configuración
+├── .env                               # Tu configuración (NO subir a git)
+├── .gitignore                         # Archivos ignorados por git
+├── GITHUB_ACTIONS_DEPLOY.md           # Guía rápida de deployment
+├── GITHUB_SECRETS_GUIDE.md            # Guía detallada de secrets
+└── README.md                          # Este archivo
 ```
 
 ## 🔧 Personalización
@@ -230,12 +359,20 @@ Edita esta línea en `main()`:
 jobs_to_send = startup_jobs[:10]  # Cambia 5 por el número que quieras
 ```
 
-## 📊 API Limits
+## 📊 API Limits y Costos
+
+### GitHub Actions (Cuenta Gratuita)
+- ✅ 2000 minutos/mes GRATIS
+- Cada ejecución: ~3 minutos
+- 6 ejecuciones/día = 540 min/mes
+- Sobran ~1460 min para otros workflows
 
 ### JSearch (Plan Gratuito)
 - 100 requests/mes
 - Cada búsqueda = 1 request
-- El script usa 2 requests por defecto (2 páginas)
+- ⚠️ 6 ejecuciones/día × 30 = 180 requests/mes (excede límite)
+- 💡 **Solución**: Reduce a cada 6 horas (120 requests/mes)
+  - O suscríbete al plan Basic (500 requests/mes)
 
 ### Telegram Bot API
 - Sin límites para uso normal
