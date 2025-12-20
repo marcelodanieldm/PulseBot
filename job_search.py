@@ -43,10 +43,20 @@ def load_sent_jobs() -> Set[str]:
         try:
             with open(SENT_JOBS_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                return set(data.get('sent_job_ids', []))
-        except Exception as e:
-            print(f"⚠️ Error cargando historial: {e}")
+                sent_ids = data.get('sent_job_ids', [])
+                print(f"✅ Historial cargado: {len(sent_ids)} ofertas registradas")
+                return set(sent_ids)
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Error decodificando JSON: {e}. Creando historial nuevo.")
             return set()
+        except IOError as e:
+            print(f"⚠️ Error leyendo archivo: {e}")
+            return set()
+        except Exception as e:
+            print(f"⚠️ Error inesperado cargando historial: {e}")
+            return set()
+    else:
+        print("📝 No existe historial previo, creando nuevo")
     return set()
 
 
@@ -60,13 +70,20 @@ def save_sent_jobs(sent_ids: Set[str]):
     try:
         data = {
             'sent_job_ids': list(sent_ids),
-            'last_updated': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())
+            'last_updated': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+            'total_sent': len(sent_ids)
         }
         with open(SENT_JOBS_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"💾 Historial actualizado: {len(sent_ids)} ofertas registradas")
+    except IOError as e:
+        print(f"❌ Error de I/O guardando historial: {e}")
+        print("⚠️ El historial no se guardó, pero el bot continuará funcionando")
+    except TypeError as e:
+        print(f"❌ Error de tipo al serializar datos: {e}")
     except Exception as e:
-        print(f"❌ Error guardando historial: {e}")
+        print(f"❌ Error inesperado guardando historial: {e}")
+        print("⚠️ El historial no se guardó, pero el bot continuará funcionando")
 
 
 def generate_job_id(job: Dict) -> str:
@@ -79,21 +96,26 @@ def generate_job_id(job: Dict) -> str:
     Returns:
         ID único (hash MD5)
     """
-    # Usar múltiples campos para generar un ID único
-    job_apply_link = job.get('job_apply_link', '')
-    
-    # Si hay link de aplicación, usarlo como base
-    if job_apply_link:
-        unique_string = job_apply_link
-    else:
-        # Fallback: combinar título, empresa y ubicación
-        title = job.get('job_title', '')
-        company = job.get('employer_name', '')
-        location = job.get('job_city', '') + job.get('job_country', '')
-        unique_string = f"{title}|{company}|{location}"
-    
-    # Generar hash MD5
-    return hashlib.md5(unique_string.encode('utf-8')).hexdigest()
+    try:
+        # Usar múltiples campos para generar un ID único
+        job_apply_link = job.get('job_apply_link', '')
+        
+        # Si hay link de aplicación, usarlo como base
+        if job_apply_link:
+            unique_string = job_apply_link
+        else:
+            # Fallback: combinar título, empresa y ubicación
+            title = job.get('job_title', '')
+            company = job.get('employer_name', '')
+            location = job.get('job_city', '') + job.get('job_country', '')
+            unique_string = f"{title}|{company}|{location}"
+        
+        # Generar hash MD5
+        return hashlib.md5(unique_string.encode('utf-8')).hexdigest()
+    except Exception as e:
+        print(f"⚠️ Error generando ID único: {e}")
+        # Fallback: generar ID basado en timestamp
+        return hashlib.md5(str(time.time()).encode('utf-8')).hexdigest()
 
 
 def filter_new_jobs(jobs: List[Dict], sent_ids: Set[str]) -> List[Dict]:
@@ -109,16 +131,26 @@ def filter_new_jobs(jobs: List[Dict], sent_ids: Set[str]) -> List[Dict]:
     """
     new_jobs = []
     
-    for job in jobs:
-        job_id = generate_job_id(job)
-        if job_id not in sent_ids:
-            new_jobs.append(job)
-    
-    duplicates = len(jobs) - len(new_jobs)
-    if duplicates > 0:
-        print(f"🔄 Filtrados {duplicates} trabajos duplicados")
-    
-    return new_jobs
+    try:
+        for job in jobs:
+            try:
+                job_id = generate_job_id(job)
+                if job_id not in sent_ids:
+                    new_jobs.append(job)
+            except Exception as e:
+                print(f"⚠️ Error procesando trabajo individual: {e}")
+                # Continuar con el siguiente trabajo
+                continue
+        
+        duplicates = len(jobs) - len(new_jobs)
+        if duplicates > 0:
+            print(f"🔄 Filtrados {duplicates} trabajos duplicados")
+        
+        return new_jobs
+    except Exception as e:
+        print(f"❌ Error inesperado en filtrado: {e}")
+        print("⚠️ Devolviendo todos los trabajos sin filtrar")
+        return jobs
 
 
 def search_jobs(query: str = "Software Engineer", 
@@ -159,21 +191,50 @@ def search_jobs(query: str = "Software Engineer",
         
         try:
             print(f"🔍 Buscando página {page}...")
-            response = requests.get(url, headers=headers, params=querystring, timeout=10)
+            response = requests.get(url, headers=headers, params=querystring, timeout=15)
             response.raise_for_status()
             
             data = response.json()
             jobs = data.get('data', [])
-            all_jobs.extend(jobs)
             
-            print(f"✅ Encontrados {len(jobs)} trabajos en página {page}")
+            if jobs:
+                all_jobs.extend(jobs)
+                print(f"✅ Encontrados {len(jobs)} trabajos en página {page}")
+            else:
+                print(f"⚠️ No se encontraron trabajos en página {page}")
             
             # Pequeña pausa para no saturar la API
             time.sleep(1)
             
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Error al buscar trabajos: {e}")
+        except requests.exceptions.Timeout:
+            print(f"⏱️ Timeout en página {page}. Continuando con la siguiente...")
+            continue
+        except requests.exceptions.HTTPError as e:
+            print(f"❌ Error HTTP en página {page}: {e}")
+            if e.response.status_code == 429:
+                print("⚠️ Rate limit alcanzado. Esperando 5 segundos...")
+                time.sleep(5)
+                continue
+            elif e.response.status_code >= 500:
+                print("⚠️ Error del servidor. Continuando con lo obtenido...")
+                break
+            else:
+                break
+        except requests.exceptions.ConnectionError:
+            print(f"❌ Error de conexión en página {page}. Verificando conectividad...")
             break
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error inesperado al buscar trabajos en página {page}: {e}")
+            break
+        except json.JSONDecodeError:
+            print(f"❌ Error decodificando respuesta JSON en página {page}")
+            continue
+        except Exception as e:
+            print(f"❌ Error inesperado en búsqueda: {e}")
+            break
+    
+    if not all_jobs:
+        print("⚠️ No se encontraron trabajos en ninguna página")
     
     return all_jobs
 
@@ -190,12 +251,27 @@ def filter_jobs_by_platform(jobs: List[Dict]) -> List[Dict]:
     """
     filtered_jobs = []
     
-    for job in jobs:
-        job_apply_link = job.get('job_apply_link', '')
+    try:
+        for job in jobs:
+            try:
+                job_apply_link = job.get('job_apply_link', '')
+                
+                # Verificar si el link contiene alguna de las plataformas permitidas
+                if job_apply_link and any(platform in job_apply_link.lower() for platform in ALLOWED_PLATFORMS):
+                    filtered_jobs.append(job)
+            except AttributeError as e:
+                print(f"⚠️ Error procesando link de trabajo: {e}")
+                continue
+            except Exception as e:
+                print(f"⚠️ Error inesperado procesando trabajo: {e}")
+                continue
         
-        # Verificar si el link contiene alguna de las plataformas permitidas
-        if any(platform in job_apply_link.lower() for platform in ALLOWED_PLATFORMS):
-            filtered_jobs.append(job)
+        print(f"📊 Filtrados {len(filtered_jobs)} de {len(jobs)} trabajos por plataforma ATS")
+        return filtered_jobs
+    except Exception as e:
+        print(f"❌ Error crítico en filtrado por plataforma: {e}")
+        print("⚠️ Devolviendo lista vacía para evitar fallos")
+        return []
     
     print(f"📊 Filtrados {len(filtered_jobs)} de {len(jobs)} trabajos por plataforma ATS")
     return filtered_jobs
@@ -249,6 +325,9 @@ def search_company_reviews(company_name: str) -> Optional[str]:
     Returns:
         Snippet del resultado o None
     """
+    if not company_name:
+        return None
+        
     try:
         query = f"{company_name} employee reviews glassdoor"
         
@@ -256,26 +335,42 @@ def search_company_reviews(company_name: str) -> Optional[str]:
         time.sleep(2)  # Pausa antes de la búsqueda
         
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+            try:
+                results = list(ddgs.text(query, max_results=3))
+            except Exception as search_error:
+                print(f"  ⚠️ Error en búsqueda DuckDuckGo: {search_error}")
+                return None
             
             if results:
                 # Buscar resultados relevantes (Glassdoor, Indeed, etc.)
                 for result in results:
-                    title = result.get('title', '').lower()
-                    body = result.get('body', '')
-                    
-                    if any(site in title for site in ['glassdoor', 'indeed', 'comparably']):
-                        # Intentar extraer rating del snippet
-                        snippet = body[:200] + "..." if len(body) > 200 else body
-                        return snippet
+                    try:
+                        title = result.get('title', '').lower()
+                        body = result.get('body', '')
+                        
+                        if any(site in title for site in ['glassdoor', 'indeed', 'comparably']):
+                            # Intentar extraer rating del snippet
+                            snippet = body[:200] + "..." if len(body) > 200 else body
+                            return snippet
+                    except Exception as e:
+                        print(f"  ⚠️ Error procesando resultado: {e}")
+                        continue
                 
                 # Si no hay resultados específicos, retornar el primero
-                return results[0].get('body', '')[:200] + "..."
+                try:
+                    first_result = results[0].get('body', '')
+                    return first_result[:200] + "..." if first_result else None
+                except Exception:
+                    return None
         
+        return None
+    except ImportError:
+        print(f"  ⚠️ DuckDuckGo search no disponible. Instala: pip install duckduckgo-search")
         return None
     except Exception as e:
         # Si hay rate limiting, no es crítico - continuar sin reviews
-        if "ratelimit" in str(e).lower():
+        error_msg = str(e).lower()
+        if "ratelimit" in error_msg or "rate limit" in error_msg:
             print(f"  ⏳ Rate limit alcanzado, continuando sin reviews...")
         else:
             print(f"  ⚠️ Error buscando reviews para {company_name}: {e}")
@@ -300,15 +395,23 @@ def analyze_company_sentiment(company_name: str, job_description: str) -> str:
         # Tomar solo los primeros 500 caracteres para el análisis
         text_sample = job_description[:500]
         
-        blob = TextBlob(text_sample)
-        polarity = blob.sentiment.polarity
-        
-        if polarity > 0.1:
-            return "Positivo"
-        elif polarity < -0.1:
-            return "Negativo"
-        else:
+        try:
+            blob = TextBlob(text_sample)
+            polarity = blob.sentiment.polarity
+            
+            if polarity > 0.1:
+                return "Positivo"
+            elif polarity < -0.1:
+                return "Negativo"
+            else:
+                return "Neutral"
+        except Exception as analysis_error:
+            print(f"  ⚠️ Error en análisis de polaridad: {analysis_error}")
             return "Neutral"
+            
+    except ImportError:
+        print(f"  ⚠️ TextBlob no disponible. Instala: pip install textblob")
+        return "Neutral"
     except Exception as e:
         print(f"  ⚠️ Error analizando sentimiento para {company_name}: {e}")
         return "Neutral"
@@ -325,15 +428,28 @@ def count_company_active_jobs(company_name: str, all_jobs: List[Dict]) -> int:
     Returns:
         Número de vacantes activas
     """
-    count = 0
-    company_lower = company_name.lower().strip()
-    
-    for job in all_jobs:
-        employer = (job.get('employer_name', '') or '').lower().strip()
-        if employer == company_lower:
-            count += 1
-    
-    return count
+    if not company_name or not all_jobs:
+        return 0
+        
+    try:
+        count = 0
+        company_lower = company_name.lower().strip()
+        
+        for job in all_jobs:
+            try:
+                employer = (job.get('employer_name', '') or '').lower().strip()
+                if employer == company_lower:
+                    count += 1
+            except AttributeError:
+                continue
+            except Exception as e:
+                print(f"  ⚠️ Error procesando trabajo en conteo: {e}")
+                continue
+        
+        return count
+    except Exception as e:
+        print(f"  ⚠️ Error contando vacantes: {e}")
+        return 1  # Al menos la vacante actual
 
 
 def calculate_hiring_probability(active_jobs: int, has_reviews: bool, sentiment: str) -> Tuple[str, str]:
@@ -386,73 +502,99 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
         all_jobs: Lista de todos los trabajos (para contar vacantes activas)
     
     Returns:
-        Mensaje formateado
+        Mensaje formateado o None si hay error crítico
     """
-    title = job.get('job_title', 'N/A')
-    company = job.get('employer_name', 'N/A')
-    location = job.get('job_city', 'Remote')
-    country = job.get('job_country', '')
-    
-    if country:
-        location = f"{location}, {country}"
-    
-    apply_link = job.get('job_apply_link', 'N/A')
-    
-    # Información salarial
-    salary_min = job.get('job_min_salary')
-    salary_max = job.get('job_max_salary')
-    salary_currency = job.get('job_salary_currency', 'USD')
-    
-    if salary_min and salary_max:
-        salary = f"💰 ${salary_min:,.0f} - ${salary_max:,.0f} {salary_currency}"
-    elif salary_min:
-        salary = f"💰 Desde ${salary_min:,.0f} {salary_currency}"
-    elif salary_max:
-        salary = f"💰 Hasta ${salary_max:,.0f} {salary_currency}"
-    else:
-        salary = "💰 Salario no especificado"
-    
-    # Detectar plataforma ATS
-    platform = "Otra"
-    for p in ALLOWED_PLATFORMS:
-        if p in apply_link.lower():
-            platform = p.replace('.io', '').replace('.co', '').replace('.com', '').title()
-            break
-    
-    # === REPUTATION CHECK ===
-    print(f"  🔍 Analizando reputación de {company}...")
-    
-    # 1. Buscar reviews
-    reviews_snippet = search_company_reviews(company)
-    has_reviews = reviews_snippet is not None
-    
-    # 2. Analizar sentimiento
-    job_description = job.get('job_description', '')
-    sentiment = analyze_company_sentiment(company, job_description)
-    
-    # 3. Contar vacantes activas
-    active_jobs = 1  # Al menos esta vacante
-    if all_jobs:
-        active_jobs = count_company_active_jobs(company, all_jobs)
-    
-    # 4. Calcular probabilidad de contratación
-    probability, emoji = calculate_hiring_probability(active_jobs, has_reviews, sentiment)
-    
-    # Construir sección de análisis
-    analysis_section = f"\n📊 <b>Análisis de Empresa:</b>\n"
-    analysis_section += f"   • Vacantes activas: {active_jobs}\n"
-    analysis_section += f"   • Sentimiento: {sentiment}\n"
-    
-    if reviews_snippet:
-        # Limpiar y acortar snippet
-        clean_snippet = reviews_snippet.replace('<', '').replace('>', '').strip()
-        if len(clean_snippet) > 150:
-            clean_snippet = clean_snippet[:150] + "..."
-        analysis_section += f"   • Review: \"{clean_snippet}\"\n"
-    
-    analysis_section += f"\n{emoji} <b>Posibilidad de contratación: {probability}</b>\n"
-    
-    message = f"""
+    try:
+        title = job.get('job_title', 'N/A')
+        company = job.get('employer_name', 'N/A')
+        location = job.get('job_city', 'Remote')
+        country = job.get('job_country', '')
+        
+        if country:
+            location = f"{location}, {country}"
+        
+        apply_link = job.get('job_apply_link', 'N/A')
+        
+        # Información salarial con manejo seguro
+        try:
+            salary_min = job.get('job_min_salary')
+            salary_max = job.get('job_max_salary')
+            salary_currency = job.get('job_salary_currency', 'USD')
+            
+            if salary_min and salary_max:
+                salary = f"💰 ${salary_min:,.0f} - ${salary_max:,.0f} {salary_currency}"
+            elif salary_min:
+                salary = f"💰 Desde ${salary_min:,.0f} {salary_currency}"
+            elif salary_max:
+                salary = f"💰 Hasta ${salary_max:,.0f} {salary_currency}"
+            else:
+                salary = "💰 Salario no especificado"
+        except (ValueError, TypeError):
+            salary = "💰 Salario no especificado"
+        
+        # Detectar plataforma ATS
+        platform = "Otra"
+        try:
+            for p in ALLOWED_PLATFORMS:
+                if apply_link and p in apply_link.lower():
+                    platform = p.replace('.io', '').replace('.co', '').replace('.com', '').title()
+                    break
+        except AttributeError:
+            platform = "Otra"
+        
+        # === REPUTATION CHECK ===
+        print(f"  🔍 Analizando reputación de {company}...")
+        
+        # 1. Buscar reviews (con protección)
+        reviews_snippet = None
+        has_reviews = False
+        try:
+            reviews_snippet = search_company_reviews(company)
+            has_reviews = reviews_snippet is not None
+        except Exception as e:
+            print(f"  ⚠️ Error obteniendo reviews: {e}")
+        
+        # 2. Analizar sentimiento (con protección)
+        sentiment = "Neutral"
+        try:
+            job_description = job.get('job_description', '')
+            sentiment = analyze_company_sentiment(company, job_description)
+        except Exception as e:
+            print(f"  ⚠️ Error en análisis de sentimiento: {e}")
+        
+        # 3. Contar vacantes activas (con protección)
+        active_jobs = 1  # Al menos esta vacante
+        try:
+            if all_jobs:
+                active_jobs = count_company_active_jobs(company, all_jobs)
+        except Exception as e:
+            print(f"  ⚠️ Error contando vacantes: {e}")
+# 4. Calcular probabilidad de contratación (con protección)
+        probability = "Media"
+        emoji = "⚡"
+        try:
+            probability, emoji = calculate_hiring_probability(active_jobs, has_reviews, sentiment)
+        except Exception as e:
+            print(f"  ⚠️ Error calculando probabilidad: {e}")
+        
+        # Construir sección de análisis
+        analysis_section = f"\n📊 <b>Análisis de Empresa:</b>\n"
+        analysis_section += f"   • Vacantes activas: {active_jobs}\n"
+        analysis_section += f"   • Sentimiento: {sentiment}\n"
+        
+        if reviews_snippet:
+            try:
+                # Limpiar y acortar snippet
+                clean_snippet = reviews_snippet.replace('<', '').replace('>', '').strip()
+                if len(clean_snippet) > 150:
+                    clean_snippet = clean_snippet[:150] + "..."
+                analysis_section += f"   • Review: \"{clean_snippet}\"\n"
+            except Exception as e:
+                print(f"  ⚠️ Error procesando review snippet: {e}")
+        
+        analysis_section += f"\n{emoji} <b>Posibilidad de contratación: {probability}</b>\n"
+        
+        message = f"""
 🔵 <b>{title}</b>
 
 🏢 <b>Empresa:</b> {company}
@@ -461,6 +603,18 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
 🔗 <b>Plataforma:</b> {platform}
 {analysis_section}
 <b>Aplicar aquí:</b> {apply_link}
+
+{'─' * 40}
+"""
+        
+        return message
+        
+    except KeyError as e:
+        print(f"❌ Error: Campo faltante en datos del trabajo: {e}")
+        return None
+    except Exception as e:
+        print(f"❌ Error inesperado formateando mensaje: {e}")
+        return None
 
 {'─' * 40}
 """
@@ -483,23 +637,45 @@ def send_to_telegram(job_data: Dict, all_jobs: List[Dict] = None) -> bool:
         print("❌ Token o Chat ID de Telegram no configurados")
         return False
     
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    
-    message = format_job_message(job_data, all_jobs)
-    
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True
-    }
-    
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        
+        message = format_job_message(job_data, all_jobs)
+        
+        if not message:
+            print("⚠️ No se pudo generar el mensaje")
+            return False
+        
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }
+        
+        response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status()
+        
         return True
+        
+    except requests.exceptions.Timeout:
+        print(f"⏱️ Timeout enviando mensaje a Telegram")
+        return False
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 429:
+            print(f"⚠️ Rate limit de Telegram. Esperando...")
+            time.sleep(3)
+        else:
+            print(f"❌ Error HTTP al enviar a Telegram: {e.response.status_code}")
+        return False
+    except requests.exceptions.ConnectionError:
+        print(f"❌ Error de conexión con Telegram")
+        return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error al enviar mensaje a Telegram: {e}")
+        print(f"❌ Error de request a Telegram: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Error inesperado enviando a Telegram: {e}")
         return False
 
 
