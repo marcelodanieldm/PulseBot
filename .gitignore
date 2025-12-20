@@ -37,4 +37,6 @@ wheels/
 .DS_Store
 Thumbs.db
 
-# Nota: sent_jobs.json NO se ignora - es necesario para tracking en GitHub Actions
+# Database - NO IGNORAR
+# processed_jobs.db debe ser commiteado para persistencia en GitHub Actions
+# ⚠️ NUNCA agregues processed_jobs.db aquí
