@@ -10,6 +10,7 @@ import time
 import re
 import json
 import hashlib
+import sqlite3
 from typing import List, Dict, Optional, Tuple, Set
 from dotenv import load_dotenv
 from duckduckgo_search import DDGS
@@ -28,62 +29,150 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 # Plataformas ATS permitidas
 ALLOWED_PLATFORMS = ['greenhouse.io', 'lever.co', 'bamboohr.com']
 
-# Archivo para tracking de ofertas enviadas
-SENT_JOBS_FILE = 'sent_jobs.json'
+# Base de datos para tracking de ofertas enviadas
+DB_FILE = 'processed_jobs.db'
+
+# Diccionarios de clasificación
+CATEGORIES = {
+    '🚀 STARTUP': [
+        'series a', 'series b', 'seed', 'equity', 'stock options', 'unicorn',
+        'venture capital', 'vc', 'early stage', 'fast-growing', 'scaling',
+        'saas', 'product-led', 'growth stage', 'startup'
+    ],
+    '🏢 FACTORY/STAFFING': [
+        'outsourcing', 'staff augmentation', 'client project', 'consultancy',
+        'digital agency', 'nearshore', 'offshore', 'managed services',
+        'b2b services', 'staffing', 'consulting', 'augmentation'
+    ],
+    '💳 FINTECH/AI': [
+        'fintech', 'payments', 'crypto', 'web3', 'blockchain', 'llm',
+        'machine learning', 'ai', 'artificial intelligence', 'deep learning',
+        'neural network', 'cryptocurrency', 'defi', 'nft'
+    ]
+}
+
+# Keywords de LatAm Match
+LATAM_KEYWORDS = [
+    'timezone alignment', 'gmt-3', 'gmt-5', 'spanish', 'latam residents',
+    'latin america', 'south america', 'spanish speaking', 'argentina',
+    'chile', 'colombia', 'mexico', 'peru', 'brazil', 'latam only',
+    'latam preferred', 'timezone friendly'
+]
 
 
-def load_sent_jobs() -> Set[str]:
+def init_database():
     """
-    Carga el registro de ofertas ya enviadas
-    
-    Returns:
-        Set con IDs de ofertas ya enviadas
-    """
-    if os.path.exists(SENT_JOBS_FILE):
-        try:
-            with open(SENT_JOBS_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                sent_ids = data.get('sent_job_ids', [])
-                print(f"✅ Historial cargado: {len(sent_ids)} ofertas registradas")
-                return set(sent_ids)
-        except json.JSONDecodeError as e:
-            print(f"⚠️ Error decodificando JSON: {e}. Creando historial nuevo.")
-            return set()
-        except IOError as e:
-            print(f"⚠️ Error leyendo archivo: {e}")
-            return set()
-        except Exception as e:
-            print(f"⚠️ Error inesperado cargando historial: {e}")
-            return set()
-    else:
-        print("📝 No existe historial previo, creando nuevo")
-    return set()
-
-
-def save_sent_jobs(sent_ids: Set[str]):
-    """
-    Guarda el registro de ofertas enviadas
-    
-    Args:
-        sent_ids: Set con IDs de ofertas enviadas
+    Inicializa la base de datos SQLite
     """
     try:
-        data = {
-            'sent_job_ids': list(sent_ids),
-            'last_updated': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
-            'total_sent': len(sent_ids)
-        }
-        with open(SENT_JOBS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        print(f"💾 Historial actualizado: {len(sent_ids)} ofertas registradas")
-    except IOError as e:
-        print(f"❌ Error de I/O guardando historial: {e}")
-        print("⚠️ El historial no se guardó, pero el bot continuará funcionando")
-    except TypeError as e:
-        print(f"❌ Error de tipo al serializar datos: {e}")
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS processed_jobs (
+                job_id TEXT PRIMARY KEY,
+                company_name TEXT,
+                job_title TEXT,
+                processed_at TEXT,
+                category TEXT,
+                is_latam_match INTEGER
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        print("✅ Base de datos inicializada")
+    except sqlite3.Error as e:
+        print(f"❌ Error inicializando base de datos: {e}")
     except Exception as e:
-        print(f"❌ Error inesperado guardando historial: {e}")
-        print("⚠️ El historial no se guardó, pero el bot continuará funcionando")
+        print(f"❌ Error inesperado en init_database: {e}")
+
+
+def is_job_processed(job_id: str) -> bool:
+    """
+    Verifica si una oferta ya fue procesada
+    
+    Args:
+        job_id: ID único del trabajo
+    
+    Returns:
+        True si ya fue procesada, False si no
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT job_id FROM processed_jobs WHERE job_id = ?', (job_id,))
+        result = cursor.fetchone()
+        
+        conn.close()
+        return result is not None
+    except sqlite3.Error as e:
+        print(f"⚠️ Error verificando job_id en DB: {e}")
+        return False
+    except Exception as e:
+        print(f"⚠️ Error inesperado en is_job_processed: {e}")
+        return False
+
+
+def save_processed_job(job_id: str, company: str, title: str, category: str, is_latam: bool):
+    """
+    Guarda una oferta como procesada
+    
+    Args:
+        job_id: ID único del trabajo
+        company: Nombre de la empresa
+        title: Título del puesto
+        category: Categoría detectada
+        is_latam: Si es match de LatAm
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT OR IGNORE INTO processed_jobs 
+            (job_id, company_name, job_title, processed_at, category, is_latam_match)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            job_id,
+            company,
+            title,
+            time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime()),
+            category,
+            1 if is_latam else 0
+        ))
+        
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"⚠️ Error guardando job en DB: {e}")
+    except Exception as e:
+        print(f"⚠️ Error inesperado en save_processed_job: {e}")
+
+
+def get_processed_count() -> int:
+    """
+    Obtiene el total de ofertas procesadas
+    
+    Returns:
+        Número total de ofertas en la DB
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) FROM processed_jobs')
+        count = cursor.fetchone()[0]
+        
+        conn.close()
+        return count
+    except sqlite3.Error as e:
+        print(f"⚠️ Error obteniendo conteo de DB: {e}")
+        return 0
+    except Exception as e:
+        print(f"⚠️ Error inesperado en get_processed_count: {e}")
+        return 0
 
 
 def generate_job_id(job: Dict) -> str:
@@ -452,6 +541,114 @@ def count_company_active_jobs(company_name: str, all_jobs: List[Dict]) -> int:
         return 1  # Al menos la vacante actual
 
 
+def classify_job(job: Dict) -> str:
+    """
+    Clasifica el trabajo según keywords en título y descripción
+    
+    Args:
+        job: Diccionario con datos del trabajo
+    
+    Returns:
+        Categoría detectada (emoji incluido) o '📋 GENERAL' si no match
+    """
+    try:
+        title = (job.get('job_title', '') or '').lower()
+        description = (job.get('job_description', '') or '').lower()
+        company_desc = (job.get('employer_company_type', '') or '').lower()
+        
+        # Combinar todo el texto para búsqueda
+        full_text = f"{title} {description} {company_desc}"
+        
+        # Buscar categoría con mayor número de matches
+        best_category = '📋 GENERAL'
+        max_matches = 0
+        
+        for category, keywords in CATEGORIES.items():
+            matches = sum(1 for keyword in keywords if keyword in full_text)
+            if matches > max_matches:
+                max_matches = matches
+                best_category = category
+        
+        # Si encontramos al menos 1 match, usar esa categoría
+        if max_matches > 0:
+            return best_category
+        
+        return '📋 GENERAL'
+        
+    except Exception as e:
+        print(f"  ⚠️ Error clasificando trabajo: {e}")
+        return '📋 GENERAL'
+
+
+def is_latam_match(job: Dict) -> bool:
+    """
+    Verifica si la oferta es un match perfecto para LatAm
+    
+    Args:
+        job: Diccionario con datos del trabajo
+    
+    Returns:
+        True si contiene keywords de LatAm, False si no
+    """
+    try:
+        title = (job.get('job_title', '') or '').lower()
+        description = (job.get('job_description', '') or '').lower()
+        location = (job.get('job_country', '') or '').lower()
+        requirements = (job.get('job_highlights', {}) or {}).get('Qualifications', [])
+        requirements_text = ' '.join(requirements).lower() if requirements else ''
+        
+        # Combinar todo el texto
+        full_text = f"{title} {description} {location} {requirements_text}"
+        
+        # Buscar keywords de LatAm
+        for keyword in LATAM_KEYWORDS:
+            if keyword in full_text:
+                return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"  ⚠️ Error verificando LatAm match: {e}")
+        return False
+
+
+def detect_niche(job: Dict) -> str:
+    """
+    Detecta el nicho específico del trabajo (SaaS, Fintech, etc.)
+    
+    Args:
+        job: Diccionario con datos del trabajo
+    
+    Returns:
+        Nicho detectado o 'General'
+    """
+    try:
+        description = (job.get('job_description', '') or '').lower()
+        title = (job.get('job_title', '') or '').lower()
+        full_text = f"{title} {description}"
+        
+        # Buscar nichos específicos
+        niches = {
+            'SaaS': ['saas', 'software as a service', 'cloud platform', 'b2b software'],
+            'Fintech': ['fintech', 'payments', 'banking', 'financial technology'],
+            'Crypto/Web3': ['crypto', 'blockchain', 'web3', 'defi', 'nft'],
+            'AI/ML': ['ai', 'machine learning', 'artificial intelligence', 'llm', 'deep learning'],
+            'E-commerce': ['e-commerce', 'ecommerce', 'marketplace', 'retail'],
+            'HealthTech': ['healthtech', 'healthcare', 'medical', 'telemedicine'],
+            'EdTech': ['edtech', 'education', 'learning platform', 'online courses']
+        }
+        
+        for niche, keywords in niches.items():
+            if any(keyword in full_text for keyword in keywords):
+                return niche
+        
+        return 'General'
+        
+    except Exception as e:
+        print(f"  ⚠️ Error detectando nicho: {e}")
+        return 'General'
+
+
 def calculate_hiring_probability(active_jobs: int, has_reviews: bool, sentiment: str) -> Tuple[str, str]:
     """
     Calcula la probabilidad de contratación basada en varios factores
@@ -594,37 +791,50 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
         
         analysis_section += f"\n{emoji} <b>Posibilidad de contratación: {probability}</b>\n"
         
+        # Clasificar el trabajo
+        category = classify_job(job)
+        
+        # Detectar nicho
+        niche = detect_niche(job)
+        
+        # Verificar LatAm match
+        latam_fire = ""
+        is_latam = is_latam_match(job)
+        if is_latam:
+            latam_fire = "🔥 "
+        
+        # Generar job_id para display
+        job_id = generate_job_id(job)
+        short_id = job_id[:12] if job_id else "N/A"
+        
         message = f"""
-🔵 <b>{title}</b>
+{latam_fire}[{category}] <b>{title}</b>
 
 🏢 <b>Empresa:</b> {company}
+💰 <b>Nicho:</b> {niche}
 📍 <b>Ubicación:</b> {location}
 {salary}
-🔗 <b>Plataforma:</b> {platform}
+🛠️ <b>ATS:</b> {platform}
 {analysis_section}
-<b>Aplicar aquí:</b> {apply_link}
+🔗 <b>Aplicar aquí:</b> {apply_link}
 
+<code>ID: {short_id}</code>
 {'─' * 40}
 """
         
-        return message
+        return message, category, is_latam
         
     except KeyError as e:
         print(f"❌ Error: Campo faltante en datos del trabajo: {e}")
-        return None
+        return None, "📋 GENERAL", False
     except Exception as e:
         print(f"❌ Error inesperado formateando mensaje: {e}")
-        return None
-
-{'─' * 40}
-"""
-    
-    return message
+        return None, "📋 GENERAL", False
 
 
 def send_to_telegram(job_data: Dict, all_jobs: List[Dict] = None) -> bool:
     """
-    Envía la información del trabajo a Telegram
+    Envía la información del trabajo a Telegram y guarda en DB
     
     Args:
         job_data: Diccionario con datos del trabajo
@@ -640,11 +850,14 @@ def send_to_telegram(job_data: Dict, all_jobs: List[Dict] = None) -> bool:
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         
-        message = format_job_message(job_data, all_jobs)
+        result = format_job_message(job_data, all_jobs)
         
-        if not message:
+        if not result:
             print("⚠️ No se pudo generar el mensaje")
             return False
+        
+        # Desempaquetar resultado
+        message, category, is_latam = result
         
         payload = {
             "chat_id": TELEGRAM_CHAT_ID,
@@ -655,6 +868,12 @@ def send_to_telegram(job_data: Dict, all_jobs: List[Dict] = None) -> bool:
         
         response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status()
+        
+        # Guardar en DB después de envío exitoso
+        job_id = generate_job_id(job_data)
+        company = job_data.get('employer_name', 'N/A')
+        title = job_data.get('job_title', 'N/A')
+        save_processed_job(job_id, company, title, category, is_latam)
         
         return True
         
@@ -684,7 +903,7 @@ def main():
     Función principal
     """
     print("=" * 50)
-    print("🤖 PulseBot - Buscador de Empleos")
+    print("🤖 PulseBot - Buscador de Empleos Inteligente")
     print("=" * 50)
     
     # Validar configuración
@@ -698,18 +917,19 @@ def main():
         print("Por favor, configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el archivo .env o GitHub Secrets")
         return
     
+    # Inicializar base de datos
+    print("\n🗄️ Inicializando base de datos...")
+    init_database()
+    
+    processed_count = get_processed_count()
+    print(f"📊 Ofertas procesadas anteriormente: {processed_count}")
+    
     print("\n📋 Criterios de búsqueda:")
     print("  - Puesto: Software Engineer")
     print("  - Ubicación: Latin America")
     print("  - Tipo: Remote")
     print("  - Enfoque: Startups")
     print("  - Plataformas: Greenhouse, Lever, BambooHR")
-    print()
-    
-    # Cargar historial de ofertas enviadas
-    print("📂 Cargando historial de ofertas enviadas...")
-    sent_job_ids = load_sent_jobs()
-    print(f"✅ Historial cargado: {len(sent_job_ids)} ofertas previamente enviadas")
     print()
     
     # 1. Buscar trabajos
@@ -734,11 +954,11 @@ def main():
     # 3. Filtrar por startups
     startup_jobs = filter_startup_jobs(filtered_jobs)
     
-    # 4. Filtrar trabajos nuevos (no enviados previamente)
-    new_jobs = filter_new_jobs(startup_jobs, sent_job_ids)
+    # 4. Filtrar trabajos nuevos (no procesados previamente)
+    new_jobs = filter_new_jobs(startup_jobs)
     
     if not new_jobs:
-        print("✅ No hay nuevas ofertas. Todas las ofertas encontradas ya fueron enviadas anteriormente.")
+        print("✅ No hay nuevas ofertas. Todas las ofertas encontradas ya fueron procesadas anteriormente.")
         return
     
     print(f"✨ Encontradas {len(new_jobs)} ofertas nuevas para enviar")
@@ -748,32 +968,27 @@ def main():
     
     print(f"\n📤 Enviando {len(jobs_to_send)} ofertas a Telegram...\n")
     
-    # 6. Enviar a Telegram y registrar
+    # 6. Enviar a Telegram (la DB se actualiza automáticamente en send_to_telegram)
     success_count = 0
-    newly_sent_ids = set()
     
     for idx, job in enumerate(jobs_to_send, 1):
         print(f"[{idx}/{len(jobs_to_send)}] Enviando: {job.get('job_title', 'N/A')} - {job.get('employer_name', 'N/A')}")
         
         if send_to_telegram(job, jobs):  # Pasar todos los trabajos para contar vacantes
             success_count += 1
-            job_id = generate_job_id(job)
-            newly_sent_ids.add(job_id)
-            print(f"  ✅ Enviado correctamente\n")
+            print(f"  ✅ Enviado y guardado en DB\n")
         else:
             print(f"  ❌ Error al enviar\n")
         
         # Pausa entre mensajes para evitar rate limiting
         time.sleep(2)
     
-    # 7. Actualizar historial
-    if newly_sent_ids:
-        sent_job_ids.update(newly_sent_ids)
-        save_sent_jobs(sent_job_ids)
+    # 7. Mostrar estadísticas finales
+    final_count = get_processed_count()
     
     print(f"\n{'=' * 50}")
     print(f"✨ Proceso completado: {success_count}/{len(jobs_to_send)} ofertas enviadas")
-    print(f"📊 Total histórico: {len(sent_job_ids)} ofertas enviadas")
+    print(f"📊 Total en base de datos: {final_count} ofertas procesadas")
     print(f"{'=' * 50}")
 
 
