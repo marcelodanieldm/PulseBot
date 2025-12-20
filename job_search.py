@@ -59,6 +59,11 @@ LATAM_KEYWORDS = [
     'latam preferred', 'timezone friendly'
 ]
 
+# Configuración de Business Intelligence
+GROWTH_THRESHOLD = 3  # Número de vacantes para considerar "High Growth"
+GROWTH_DAYS = 7  # Días para análisis de crecimiento
+HIGH_RATING_THRESHOLD = 4.0  # Rating mínimo para bonificación
+
 
 def init_database():
     """
@@ -173,6 +178,232 @@ def get_processed_count() -> int:
     except Exception as e:
         print(f"⚠️ Error inesperado en get_processed_count: {e}")
         return 0
+
+
+def get_glassdoor_rating(company_name: str) -> Optional[float]:
+    """
+    Busca el rating de Glassdoor usando DuckDuckGo y extrae el valor numérico
+    
+    Args:
+        company_name: Nombre de la empresa
+    
+    Returns:
+        Rating como float (ej: 4.2) o None si no se encuentra
+    """
+    if not company_name:
+        return None
+    
+    try:
+        print(f"  🔍 Buscando rating de Glassdoor para {company_name}...")
+        
+        # Buscar en DuckDuckGo
+        query = f"{company_name} Glassdoor rating reviews"
+        
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=3))
+        
+        if not results:
+            print(f"  ⚠️ No se encontraron resultados de Glassdoor")
+            return None
+        
+        # Buscar patrón numérico en los primeros resultados
+        # Patrones: "4.2/5", "3.8 out of 5", "Rating: 4.5", "4.2★"
+        rating_patterns = [
+            r'(\d\.\d)\s*/\s*5',  # 4.2/5
+            r'(\d\.\d)\s+out of 5',  # 4.2 out of 5
+            r'rating[:\s]+(\d\.\d)',  # rating: 4.2
+            r'(\d\.\d)\s*★',  # 4.2★
+            r'(\d\.\d)\s*stars',  # 4.2 stars
+        ]
+        
+        for result in results:
+            text = result.get('body', '') + ' ' + result.get('title', '')
+            text = text.lower()
+            
+            for pattern in rating_patterns:
+                match = re.search(pattern, text)
+                if match:
+                    rating = float(match.group(1))
+                    # Validar rango (0.0 - 5.0)
+                    if 0.0 <= rating <= 5.0:
+                        print(f"  ✅ Rating encontrado: {rating}/5")
+                        return rating
+        
+        print(f"  ⚠️ No se pudo extraer rating numérico")
+        return None
+        
+    except Exception as e:
+        print(f"  ⚠️ Error buscando rating de Glassdoor: {e}")
+        return None
+
+
+def check_growth_indicator(company_name: str) -> Tuple[int, bool]:
+    """
+    Verifica cuántas vacantes de la empresa hay en los últimos N días
+    
+    Args:
+        company_name: Nombre de la empresa
+    
+    Returns:
+        Tupla (count, is_high_growth) donde:
+        - count: Número de vacantes en últimos GROWTH_DAYS días
+        - is_high_growth: True si count > GROWTH_THRESHOLD
+    """
+    if not company_name:
+        return 0, False
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        # Calcular fecha límite (GROWTH_DAYS días atrás)
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.utcnow() - timedelta(days=GROWTH_DAYS)
+        cutoff_str = cutoff_date.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Contar vacantes de la empresa en el período
+        cursor.execute('''
+            SELECT COUNT(*) FROM processed_jobs 
+            WHERE company_name = ? 
+            AND processed_at >= ?
+        ''', (company_name, cutoff_str))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        is_high_growth = count > GROWTH_THRESHOLD
+        
+        if is_high_growth:
+            print(f"  🔥 HIGH GROWTH: {count} vacantes en últimos {GROWTH_DAYS} días")
+        else:
+            print(f"  📊 {count} vacantes en últimos {GROWTH_DAYS} días")
+        
+        return count, is_high_growth
+        
+    except sqlite3.Error as e:
+        print(f"  ⚠️ Error verificando crecimiento en DB: {e}")
+        return 0, False
+    except Exception as e:
+        print(f"  ⚠️ Error inesperado en check_growth_indicator: {e}")
+        return 0, False
+
+
+def analyze_job_description_sentiment(description: str) -> Tuple[str, float]:
+    """
+    Analiza el sentimiento de la descripción del trabajo
+    
+    Args:
+        description: Texto de la descripción
+    
+    Returns:
+        Tupla (sentiment_label, polarity_score) donde:
+        - sentiment_label: 'Muy Positivo', 'Positivo', 'Neutral', 'Negativo'
+        - polarity_score: Valor entre -1.0 y 1.0
+    """
+    if not description or len(description) < 50:
+        return 'Neutral', 0.0
+    
+    try:
+        blob = TextBlob(description)
+        polarity = blob.sentiment.polarity
+        
+        # Clasificación más granular
+        if polarity > 0.3:
+            sentiment = 'Muy Positivo'
+        elif polarity > 0.1:
+            sentiment = 'Positivo'
+        elif polarity < -0.1:
+            sentiment = 'Negativo'
+        else:
+            sentiment = 'Neutral'
+        
+        return sentiment, polarity
+        
+    except Exception as e:
+        print(f"  ⚠️ Error analizando sentimiento de descripción: {e}")
+        return 'Neutral', 0.0
+
+
+def calculate_pulse_score(
+    category: str,
+    glassdoor_rating: Optional[float],
+    growth_count: int,
+    is_latam: bool,
+    sentiment_polarity: float
+) -> Tuple[int, str]:
+    """
+    Calcula el Pulse Score (1-10) basado en múltiples factores
+    
+    Fórmula:
+    - +3 puntos si es STARTUP
+    - +2 puntos si Rating > 4.0
+    - +3 puntos si tiene > 2 vacantes activas (Growth)
+    - +2 puntos si menciona LatAm explícitamente
+    - +1 punto si sentimiento es muy positivo (polarity > 0.3)
+    - -1 punto si sentimiento es negativo
+    
+    Args:
+        category: Categoría de la empresa
+        glassdoor_rating: Rating de Glassdoor (0-5)
+        growth_count: Número de vacantes activas
+        is_latam: Si menciona LatAm
+        sentiment_polarity: Polaridad del sentimiento (-1 a 1)
+    
+    Returns:
+        Tupla (score, tip) donde:
+        - score: Puntuación de 1 a 10
+        - tip: Consejo personalizado para el usuario
+    """
+    score = 0
+    tips = []
+    
+    # Factor 1: Es Startup (+3)
+    if '🚀 STARTUP' in category:
+        score += 3
+        tips.append('empresa en etapa de crecimiento')
+    
+    # Factor 2: Rating alto (+2)
+    if glassdoor_rating and glassdoor_rating > HIGH_RATING_THRESHOLD:
+        score += 2
+        tips.append(f'excelente rating ({glassdoor_rating}/5)')
+    
+    # Factor 3: Growth (>2 vacantes = +3)
+    if growth_count > 2:
+        score += 3
+        tips.append('está escalando rápido')
+    
+    # Factor 4: LatAm Match (+2)
+    if is_latam:
+        score += 2
+        tips.append('busca talento LatAm específicamente')
+    
+    # Factor 5: Sentimiento muy positivo (+1)
+    if sentiment_polarity > 0.3:
+        score += 1
+        tips.append('descripción muy atractiva')
+    elif sentiment_polarity < -0.1:
+        score -= 1
+    
+    # Normalizar a escala 1-10
+    score = max(1, min(10, score))
+    
+    # Generar tip personalizado
+    if len(tips) > 0:
+        tip = f"Esta empresa {', '.join(tips[:2])}"
+    else:
+        tip = "Revisa bien la descripción y cultura de la empresa"
+    
+    # Agregar contexto según score
+    if score >= 8:
+        tip += " - ¡Gran oportunidad! 🎯"
+    elif score >= 6:
+        tip += " - Vale la pena aplicar"
+    elif score >= 4:
+        tip += " - Investiga más antes de aplicar"
+    else:
+        tip += " - Procede con cautela"
+    
+    return score, tip
 
 
 def generate_job_id(job: Dict) -> str:
@@ -690,6 +921,24 @@ def calculate_hiring_probability(active_jobs: int, has_reviews: bool, sentiment:
         return "Baja", "💤"
 
 
+def generate_score_bar(score: int, max_score: int = 10) -> str:
+    """
+    Genera una barra visual para el Pulse Score
+    
+    Args:
+        score: Puntuación actual (1-10)
+        max_score: Puntuación máxima (default 10)
+    
+    Returns:
+        Barra visual como string (ej: [⭐⭐⭐⭐-------] 4/10)
+    """
+    filled = min(score, max_score)
+    empty = max_score - filled
+    
+    bar = '⭐' * filled + '-------'[:empty]
+    return f"[{bar}] {score}/{max_score}"
+
+
 def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
     """
     Formatea la información del trabajo para Telegram
@@ -766,7 +1015,8 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
                 active_jobs = count_company_active_jobs(company, all_jobs)
         except Exception as e:
             print(f"  ⚠️ Error contando vacantes: {e}")
-# 4. Calcular probabilidad de contratación (con protección)
+        
+        # 4. Calcular probabilidad de contratación (con protección)
         probability = "Media"
         emoji = "⚡"
         try:
@@ -774,9 +1024,74 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
         except Exception as e:
             print(f"  ⚠️ Error calculando probabilidad: {e}")
         
-        # Construir sección de análisis
+        # === BUSINESS INTELLIGENCE ===
+        print(f"  🧠 Calculando Business Intelligence...")
+        
+        # 5. Obtener Glassdoor Rating
+        glassdoor_rating = None
+        try:
+            glassdoor_rating = get_glassdoor_rating(company)
+        except Exception as e:
+            print(f"  ⚠️ Error obteniendo rating de Glassdoor: {e}")
+        
+        # 6. Verificar indicador de crecimiento
+        growth_count = 0
+        is_high_growth = False
+        try:
+            growth_count, is_high_growth = check_growth_indicator(company)
+        except Exception as e:
+            print(f"  ⚠️ Error verificando crecimiento: {e}")
+        
+        # 7. Analizar sentimiento de la descripción del trabajo
+        job_sentiment = "Neutral"
+        sentiment_polarity = 0.0
+        try:
+            job_description = job.get('job_description', '')
+            job_sentiment, sentiment_polarity = analyze_job_description_sentiment(job_description)
+        except Exception as e:
+            print(f"  ⚠️ Error analizando sentimiento del job: {e}")
+        
+        # === CLASIFICACIÓN ===
+        # Clasificar el trabajo
+        category = classify_job(job)
+        
+        # Detectar nicho
+        niche = detect_niche(job)
+        
+        # Verificar LatAm match
+        latam_fire = ""
+        is_latam = is_latam_match(job)
+        if is_latam:
+            latam_fire = "🔥 "
+        
+        # 8. Calcular Pulse Score
+        pulse_score = 1
+        pulse_tip = "Revisa bien la descripción"
+        try:
+            pulse_score, pulse_tip = calculate_pulse_score(
+                category,
+                glassdoor_rating,
+                growth_count,
+                is_latam,
+                sentiment_polarity
+            )
+            print(f"  ⭐ Pulse Score: {pulse_score}/10")
+        except Exception as e:
+            print(f"  ⚠️ Error calculando Pulse Score: {e}")
+        
+        # Generar barra visual del score
+        score_bar = generate_score_bar(pulse_score)
+        
+        # Construir sección de análisis básico
         analysis_section = f"\n📊 <b>Análisis de Empresa:</b>\n"
         analysis_section += f"   • Vacantes activas: {active_jobs}\n"
+        
+        if glassdoor_rating:
+            analysis_section += f"   • Rating Glassdoor: {glassdoor_rating}/5 ⭐\n"
+        
+        if is_high_growth:
+            analysis_section += f"   • 🔥 <b>HIGH GROWTH</b>: {growth_count} vacantes en {GROWTH_DAYS} días\n"
+        
         analysis_section += f"   • Sentimiento: {sentiment}\n"
         
         if reviews_snippet:
@@ -791,17 +1106,9 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
         
         analysis_section += f"\n{emoji} <b>Posibilidad de contratación: {probability}</b>\n"
         
-        # Clasificar el trabajo
-        category = classify_job(job)
-        
-        # Detectar nicho
-        niche = detect_niche(job)
-        
-        # Verificar LatAm match
-        latam_fire = ""
-        is_latam = is_latam_match(job)
-        if is_latam:
-            latam_fire = "🔥 "
+        # === PULSE SCORE SECTION ===
+        pulse_section = f"\n⚡ <b>Pulse Score:</b> {score_bar}\n"
+        pulse_section += f"💡 <b>Tip:</b> {pulse_tip}\n"
         
         # Generar job_id para display
         job_id = generate_job_id(job)
@@ -816,6 +1123,7 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
 {salary}
 🛠️ <b>ATS:</b> {platform}
 {analysis_section}
+{pulse_section}
 🔗 <b>Aplicar aquí:</b> {apply_link}
 
 <code>ID: {short_id}</code>
