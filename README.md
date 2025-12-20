@@ -17,6 +17,10 @@ Bot automatizado que busca ofertas de empleo en JSearch API y las envía a Teleg
 
 ## 🚀 Instalación
 
+### Opción 1: Ejecución Local
+
+Para ejecutar el bot localmente en tu computadora:
+
 ### 1. Clonar el repositorio
 
 ```bash
@@ -88,6 +92,28 @@ RAPIDAPI_KEY=tu_rapidapi_key_real
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=tu_chat_id_numerico
 ```
+
+### Opción 2: Despliegue Automático en GitHub Actions (Recomendado) 🌟
+
+**Para que el bot se ejecute automáticamente cada 6 horas en la nube de forma gratuita:**
+
+👉 **Guía completa**: [DEPLOYMENT.md](DEPLOYMENT.md)
+
+**Pasos rápidos:**
+1. Sube el proyecto a GitHub
+2. Configura 3 Secrets en GitHub: `RAPIDAPI_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+3. GitHub Actions se ejecutará automáticamente cada 6 horas
+4. ¡Recibe ofertas sin hacer nada! 🎉
+
+**Ventajas:**
+- ✅ 100% gratuito (2000 minutos/mes en GitHub)
+- ✅ Automático (sin intervención manual)
+- ✅ No requiere servidor propio
+- ✅ Sistema anti-duplicados integrado
+- ✅ Logs y monitoreo incluidos
+- ✅ Se ejecuta 24/7 en la nube
+
+---
 
 ## 🎯 Uso
 

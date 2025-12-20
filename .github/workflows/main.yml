@@ -1,0 +1,98 @@
+name: PulseBot Job Search
+
+on:
+  # Ejecutar cada 6 horas
+  schedule:
+    - cron: '0 */6 * * *'  # A las 00:00, 06:00, 12:00, 18:00 UTC
+  
+  # Permitir ejecución manual desde GitHub
+  workflow_dispatch:
+  
+  # Ejecutar en push para testing
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'demo.py'
+      - 'test_reputation.py'
+
+jobs:
+  search-jobs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Necesario para mantener historial
+    
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        python -m textblob.download_corpora
+    
+    - name: 📂 Restore sent jobs history
+      run: |
+        # Si existe el archivo en el commit anterior, usarlo
+        if [ -f "sent_jobs.json" ]; then
+          echo "✅ Historial de ofertas enviadas encontrado"
+        else
+          echo "📝 Creando nuevo historial"
+          echo '{"sent_job_ids": []}' > sent_jobs.json
+        fi
+    
+    - name: 🤖 Run PulseBot
+      env:
+        RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "🚀 Iniciando búsqueda de empleos..."
+        python job_search.py
+        echo "✅ Búsqueda completada"
+    
+    - name: 💾 Commit sent jobs history
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        if [ -f "sent_jobs.json" ]; then
+          git add sent_jobs.json
+          
+          # Solo hacer commit si hay cambios
+          if git diff --staged --quiet; then
+            echo "📊 No hay nuevas ofertas enviadas"
+          else
+            git commit -m "📊 Update: Registro de ofertas enviadas $(date +'%Y-%m-%d %H:%M UTC')"
+            echo "✅ Historial actualizado"
+          fi
+        fi
+    
+    - name: 📤 Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
+    
+    - name: 📊 Job Summary
+      if: always()
+      run: |
+        echo "## 🤖 PulseBot Execution Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ⏰ Execution Time: $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔄 Trigger: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- 📝 Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "sent_jobs.json" ]; then
+          TOTAL_SENT=$(python -c "import json; data=json.load(open('sent_jobs.json')); print(len(data.get('sent_job_ids', [])))")
+          echo "- 📊 Total ofertas enviadas (histórico): $TOTAL_SENT" >> $GITHUB_STEP_SUMMARY
+        fi

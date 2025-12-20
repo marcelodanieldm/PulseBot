@@ -8,7 +8,9 @@ import os
 import requests
 import time
 import re
-from typing import List, Dict, Optional, Tuple
+import json
+import hashlib
+from typing import List, Dict, Optional, Tuple, Set
 from dotenv import load_dotenv
 from duckduckgo_search import DDGS
 from textblob import TextBlob
@@ -25,6 +27,98 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 # Plataformas ATS permitidas
 ALLOWED_PLATFORMS = ['greenhouse.io', 'lever.co', 'bamboohr.com']
+
+# Archivo para tracking de ofertas enviadas
+SENT_JOBS_FILE = 'sent_jobs.json'
+
+
+def load_sent_jobs() -> Set[str]:
+    """
+    Carga el registro de ofertas ya enviadas
+    
+    Returns:
+        Set con IDs de ofertas ya enviadas
+    """
+    if os.path.exists(SENT_JOBS_FILE):
+        try:
+            with open(SENT_JOBS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return set(data.get('sent_job_ids', []))
+        except Exception as e:
+            print(f"⚠️ Error cargando historial: {e}")
+            return set()
+    return set()
+
+
+def save_sent_jobs(sent_ids: Set[str]):
+    """
+    Guarda el registro de ofertas enviadas
+    
+    Args:
+        sent_ids: Set con IDs de ofertas enviadas
+    """
+    try:
+        data = {
+            'sent_job_ids': list(sent_ids),
+            'last_updated': time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())
+        }
+        with open(SENT_JOBS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"💾 Historial actualizado: {len(sent_ids)} ofertas registradas")
+    except Exception as e:
+        print(f"❌ Error guardando historial: {e}")
+
+
+def generate_job_id(job: Dict) -> str:
+    """
+    Genera un ID único para una oferta de empleo
+    
+    Args:
+        job: Diccionario con datos del trabajo
+    
+    Returns:
+        ID único (hash MD5)
+    """
+    # Usar múltiples campos para generar un ID único
+    job_apply_link = job.get('job_apply_link', '')
+    
+    # Si hay link de aplicación, usarlo como base
+    if job_apply_link:
+        unique_string = job_apply_link
+    else:
+        # Fallback: combinar título, empresa y ubicación
+        title = job.get('job_title', '')
+        company = job.get('employer_name', '')
+        location = job.get('job_city', '') + job.get('job_country', '')
+        unique_string = f"{title}|{company}|{location}"
+    
+    # Generar hash MD5
+    return hashlib.md5(unique_string.encode('utf-8')).hexdigest()
+
+
+def filter_new_jobs(jobs: List[Dict], sent_ids: Set[str]) -> List[Dict]:
+    """
+    Filtra trabajos que ya fueron enviados
+    
+    Args:
+        jobs: Lista de ofertas de empleo
+        sent_ids: Set con IDs de ofertas ya enviadas
+    
+    Returns:
+        Lista de ofertas nuevas (no enviadas)
+    """
+    new_jobs = []
+    
+    for job in jobs:
+        job_id = generate_job_id(job)
+        if job_id not in sent_ids:
+            new_jobs.append(job)
+    
+    duplicates = len(jobs) - len(new_jobs)
+    if duplicates > 0:
+        print(f"🔄 Filtrados {duplicates} trabajos duplicados")
+    
+    return new_jobs
 
 
 def search_jobs(query: str = "Software Engineer", 
@@ -420,12 +514,12 @@ def main():
     # Validar configuración
     if not RAPIDAPI_KEY:
         print("❌ ERROR: RAPIDAPI_KEY no configurada")
-        print("Por favor, configura tu API key en el archivo .env")
+        print("Por favor, configura tu API key en el archivo .env o GitHub Secrets")
         return
     
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("❌ ERROR: Credenciales de Telegram no configuradas")
-        print("Por favor, configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el archivo .env")
+        print("Por favor, configura TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en el archivo .env o GitHub Secrets")
         return
     
     print("\n📋 Criterios de búsqueda:")
@@ -434,6 +528,12 @@ def main():
     print("  - Tipo: Remote")
     print("  - Enfoque: Startups")
     print("  - Plataformas: Greenhouse, Lever, BambooHR")
+    print()
+    
+    # Cargar historial de ofertas enviadas
+    print("📂 Cargando historial de ofertas enviadas...")
+    sent_job_ids = load_sent_jobs()
+    print(f"✅ Historial cargado: {len(sent_job_ids)} ofertas previamente enviadas")
     print()
     
     # 1. Buscar trabajos
@@ -458,18 +558,31 @@ def main():
     # 3. Filtrar por startups
     startup_jobs = filter_startup_jobs(filtered_jobs)
     
-    # 4. Limitar a los primeros 5
-    jobs_to_send = startup_jobs[:5]
+    # 4. Filtrar trabajos nuevos (no enviados previamente)
+    new_jobs = filter_new_jobs(startup_jobs, sent_job_ids)
+    
+    if not new_jobs:
+        print("✅ No hay nuevas ofertas. Todas las ofertas encontradas ya fueron enviadas anteriormente.")
+        return
+    
+    print(f"✨ Encontradas {len(new_jobs)} ofertas nuevas para enviar")
+    
+    # 5. Limitar a las primeras 5
+    jobs_to_send = new_jobs[:5]
     
     print(f"\n📤 Enviando {len(jobs_to_send)} ofertas a Telegram...\n")
     
-    # 5. Enviar a Telegram (pasar la lista completa para análisis)
+    # 6. Enviar a Telegram y registrar
     success_count = 0
+    newly_sent_ids = set()
+    
     for idx, job in enumerate(jobs_to_send, 1):
         print(f"[{idx}/{len(jobs_to_send)}] Enviando: {job.get('job_title', 'N/A')} - {job.get('employer_name', 'N/A')}")
         
         if send_to_telegram(job, jobs):  # Pasar todos los trabajos para contar vacantes
             success_count += 1
+            job_id = generate_job_id(job)
+            newly_sent_ids.add(job_id)
             print(f"  ✅ Enviado correctamente\n")
         else:
             print(f"  ❌ Error al enviar\n")
@@ -477,8 +590,14 @@ def main():
         # Pausa entre mensajes para evitar rate limiting
         time.sleep(2)
     
+    # 7. Actualizar historial
+    if newly_sent_ids:
+        sent_job_ids.update(newly_sent_ids)
+        save_sent_jobs(sent_job_ids)
+    
     print(f"\n{'=' * 50}")
     print(f"✨ Proceso completado: {success_count}/{len(jobs_to_send)} ofertas enviadas")
+    print(f"📊 Total histórico: {len(sent_job_ids)} ofertas enviadas")
     print(f"{'=' * 50}")
 
 
