@@ -111,6 +111,7 @@ CATEGORIES = {
         'decentralized finance', 'web3', 'web 3.0', 'blockchain',
         'smart contracts', 'dapp', 'nft', 'non-fungible', 'dao',
         'metaverse', 'tokenization', 'stablecoin', 'exchange',
+        'solidity', 'solidity developer', 'smart contract developer',
         
         # AI/ML
         'ai', 'artificial intelligence', 'machine learning', 'ml',
@@ -119,6 +120,34 @@ CATEGORIES = {
         'natural language processing', 'computer vision', 'cv',
         'reinforcement learning', 'supervised learning', 'data science',
         'predictive analytics', 'ai-powered', 'ml-driven', 'ai platform'
+    ],
+    '🧪 QA/TESTING': [
+        # QA General
+        'qa', 'quality assurance', 'quality engineer', 'qa engineer',
+        'test engineer', 'testing', 'software testing', 'qa analyst',
+        
+        # QA Manual
+        'manual testing', 'manual qa', 'manual tester', 'functional testing',
+        'regression testing', 'smoke testing', 'sanity testing',
+        'exploratory testing', 'user acceptance testing', 'uat',
+        
+        # QA Automation
+        'qa automation', 'test automation', 'automation engineer',
+        'selenium', 'cypress', 'playwright', 'webdriver', 'appium',
+        'junit', 'testng', 'pytest', 'jest', 'mocha',
+        
+        # SDET
+        'sdet', 'software development engineer in test',
+        'test development', 'automation framework',
+        
+        # Performance & Security
+        'performance testing', 'load testing', 'stress testing',
+        'security testing', 'penetration testing', 'api testing',
+        
+        # Tools & Methodologies
+        'test automation framework', 'ci cd testing', 'agile testing',
+        'continuous testing', 'shift left', 'test driven development', 'tdd',
+        'behavior driven development', 'bdd', 'cucumber', 'gherkin'
     ]
 }
 
@@ -1338,44 +1367,90 @@ def main():
     processed_count = get_processed_count()
     print(f"📊 Ofertas procesadas anteriormente: {processed_count}")
     
-    # Búsquedas múltiples en inglés con diferentes términos
+    # Búsquedas múltiples en inglés con diferentes roles y ubicaciones
     search_queries = [
+        # Software Engineers
         "Software Engineer remote startup",
         "Full Stack Developer remote",
         "Backend Engineer remote startup", 
         "Frontend Developer remote",
+        
+        # Infrastructure & DevOps
         "DevOps Engineer remote",
         "Site Reliability Engineer SRE remote",
         "Data Engineer remote",
         "Machine Learning Engineer remote",
+        
+        # Language-specific
         "Python Developer remote",
         "Node.js Developer remote",
         "React Developer remote",
         "Go Developer remote",
-        "Rust Engineer remote"
+        "Rust Engineer remote",
+        
+        # QA Engineers - NUEVO
+        "QA Engineer remote",
+        "QA Automation Engineer remote",
+        "QA Manual Tester remote",
+        "Test Automation Engineer remote",
+        "Quality Assurance Engineer remote",
+        "SDET Software Development Engineer in Test remote",
+        
+        # Blockchain/Web3 - NUEVO
+        "Solidity Developer remote",
+        "Blockchain Developer remote",
+        "Web3 Engineer remote",
+        "Smart Contract Developer remote",
+        
+        # Búsquedas por región - USA
+        "Software Engineer remote United States",
+        "Full Stack Developer remote USA",
+        "QA Engineer remote United States",
+        
+        # Búsquedas por región - LatAm específico
+        "Software Engineer remote Mexico",
+        "Developer remote Chile",
+        "QA Engineer remote Colombia",
+        "Engineer remote Brazil Brasil",
+        "Developer remote Argentina",
+        "Software Engineer remote Uruguay",
+        "Developer remote Costa Rica",
+        "Engineer remote Peru",
+        
+        # Búsquedas por región - Europa
+        "Software Engineer remote Europe",
+        "Developer remote European Union",
+        "QA Engineer remote Europe",
+        
+        # Búsquedas worldwide
+        "Software Engineer remote worldwide",
+        "Full Stack Developer remote anywhere",
+        "QA Engineer remote global"
     ]
     
     print("\n📋 Búsquedas configuradas:")
-    for i, query in enumerate(search_queries[:5], 1):  # Mostrar solo las primeras 5
-        print(f"  {i}. {query}")
-    print(f"  ... y {len(search_queries) - 5} más")
-    print(f"  - Ubicación: Remote/Global")
+    print(f"  Total: {len(search_queries)} queries diferentes")
+    print(f"  - Roles: Software Engineer, QA, DevOps, Blockchain/Web3")
+    print(f"  - Regiones: USA, LatAm (8 países), Europa, Worldwide")
     print(f"  - Plataformas: {len(ALLOWED_PLATFORMS)} ATS incluyendo Greenhouse, Lever, Workday, etc.")
+    print(f"\n  Ejecutando primeras 5 búsquedas...")
     print()
     
-    # 1. Buscar trabajos con múltiples queries
+    # 1. Buscar trabajos con múltiples queries (aumentado a 5 para mayor cobertura)
     all_jobs = []
-    for query in search_queries[:3]:  # Limitar a 3 búsquedas para no exceder límite de API
-        print(f"\n🔍 Búsqueda: '{query}'")
+    for idx, query in enumerate(search_queries[:5], 1):  # Ejecutar 5 búsquedas
+        print(f"\n🔍 [{idx}/5] Búsqueda: '{query}'")
         jobs = search_jobs(
             query=query,
-            location="",  # Sin filtro de ubicación específico
+            location="",  # Sin filtro de ubicación específico (ya está en el query)
             remote_jobs_only=True,
             num_pages=1
         )
         if jobs:
             all_jobs.extend(jobs)
             print(f"  ✅ {len(jobs)} resultados")
+        else:
+            print(f"  ⚠️ Sin resultados")
         time.sleep(2)  # Pausa entre búsquedas
     
     # Eliminar duplicados por job_id
