@@ -26,37 +26,143 @@ RAPIDAPI_HOST = "jsearch.p.rapidapi.com"
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-# Plataformas ATS permitidas
-ALLOWED_PLATFORMS = ['greenhouse.io', 'lever.co', 'bamboohr.com']
+# Plataformas ATS permitidas - Ampliado para IT
+ALLOWED_PLATFORMS = [
+    # Principales ATS
+    'greenhouse.io', 'lever.co', 'bamboohr.com', 'workable.com', 'ashbyhq.com',
+    'jobs.lever.co', 'apply.workable.com', 'careers-page',
+    
+    # ATS corporativos
+    'myworkdayjobs.com', 'smartrecruiters.com', 'icims.com', 'successfactors.com',
+    'taleo.net', 'ultipro.com', 'paylocity.com', 'jobvite.com',
+    
+    # ATS de startups y tech
+    'recruitee.com', 'breezy.hr', 'greenhouse.com', 'lever.com',
+    'workday.com', 'oracle.com', 'sap.com', 'personio.com',
+    
+    # ATS modernos
+    'teamtailor.com', 'pinpointhq.com', 'fountain.com', 'eightfold.ai',
+    'jazz.co', 'comeet.com', 'freshteam.com', 'zohorecruit.com',
+    
+    # Páginas de carrera
+    'careers.', 'jobs.', 'apply.', 'recruiting.', 'talent.',
+    'opportunities.', 'join.', 'work-with-us', 'we-are-hiring',
+    
+    # Plataformas específicas de IT
+    'stackoverflow.com/jobs', 'angel.co', 'wellfound.com',
+    'ycombinator.com', 'remoteok.io', 'weworkremotely.com'
+]
 
 # Base de datos para tracking de ofertas enviadas
 DB_FILE = 'processed_jobs.db'
 
-# Diccionarios de clasificación
+# Diccionarios de clasificación - Ampliado con términos en inglés
 CATEGORIES = {
     '🚀 STARTUP': [
-        'series a', 'series b', 'seed', 'equity', 'stock options', 'unicorn',
-        'venture capital', 'vc', 'early stage', 'fast-growing', 'scaling',
-        'saas', 'product-led', 'growth stage', 'startup'
+        # Etapas de financiamiento
+        'series a', 'series b', 'series c', 'seed', 'pre-seed', 'seed stage',
+        'early stage', 'growth stage', 'late stage', 'series funding',
+        
+        # Términos de startup
+        'equity', 'stock options', 'esop', 'rsu', 'unicorn', 'decacorn',
+        'venture capital', 'vc-backed', 'vc funded', 'venture backed',
+        'y combinator', 'techstars', 'accelerator', 'incubator',
+        
+        # Características
+        'fast-growing', 'hyper growth', 'scaling rapidly', 'rapidly growing',
+        'high growth', 'exponential growth', 'scaling startup', 'scale up',
+        'saas', 'paas', 'iaas', 'product-led', 'product-driven',
+        
+        # Cultura startup
+        'startup culture', 'innovative team', 'disruptive', 'game changer',
+        'cutting edge', 'bleeding edge', 'move fast', 'break things',
+        'agile startup', 'lean startup', 'mvp focused', 'iteration',
+        'startup', 'start-up', 'founded in 20', 'newly funded'
     ],
     '🏢 FACTORY/STAFFING': [
-        'outsourcing', 'staff augmentation', 'client project', 'consultancy',
-        'digital agency', 'nearshore', 'offshore', 'managed services',
-        'b2b services', 'staffing', 'consulting', 'augmentation'
+        # Modelos de negocio
+        'outsourcing', 'outstaffing', 'staff augmentation', 'body shop',
+        'staff leasing', 'talent leasing', 'resource augmentation',
+        
+        # Servicios
+        'client project', 'client projects', 'consultancy', 'consulting firm',
+        'professional services', 'managed services', 'it services',
+        'digital agency', 'software house', 'development shop',
+        
+        # Ubicación
+        'nearshore', 'offshore', 'onshore', 'distributed team',
+        'staff augmentation company', 'it consulting', 'tech consulting',
+        
+        # Tipo de trabajo
+        'b2b services', 'staffing', 'consulting', 'augmentation',
+        'client-facing', 'billable hours', 'project-based',
+        'contractor', 'contract work', 'contract to hire', 'c2h'
     ],
     '💳 FINTECH/AI': [
-        'fintech', 'payments', 'crypto', 'web3', 'blockchain', 'llm',
-        'machine learning', 'ai', 'artificial intelligence', 'deep learning',
-        'neural network', 'cryptocurrency', 'defi', 'nft'
+        # Fintech
+        'fintech', 'financial technology', 'payments', 'payment processing',
+        'banking', 'neobank', 'digital bank', 'open banking', 'api banking',
+        'wealth management', 'robo advisor', 'investment platform',
+        'lending platform', 'peer to peer', 'p2p lending', 'crowdfunding',
+        'insurtech', 'regtech', 'wealthtech', 'proptech',
+        
+        # Crypto/Web3
+        'crypto', 'cryptocurrency', 'bitcoin', 'ethereum', 'defi',
+        'decentralized finance', 'web3', 'web 3.0', 'blockchain',
+        'smart contracts', 'dapp', 'nft', 'non-fungible', 'dao',
+        'metaverse', 'tokenization', 'stablecoin', 'exchange',
+        
+        # AI/ML
+        'ai', 'artificial intelligence', 'machine learning', 'ml',
+        'deep learning', 'neural network', 'llm', 'large language model',
+        'generative ai', 'gen ai', 'gpt', 'transformer', 'nlp',
+        'natural language processing', 'computer vision', 'cv',
+        'reinforcement learning', 'supervised learning', 'data science',
+        'predictive analytics', 'ai-powered', 'ml-driven', 'ai platform'
     ]
 }
 
-# Keywords de LatAm Match
+# Keywords de LatAm Match - Ampliado con variaciones en inglés
 LATAM_KEYWORDS = [
-    'timezone alignment', 'gmt-3', 'gmt-5', 'spanish', 'latam residents',
-    'latin america', 'south america', 'spanish speaking', 'argentina',
-    'chile', 'colombia', 'mexico', 'peru', 'brazil', 'latam only',
-    'latam preferred', 'timezone friendly'
+    # Zona horaria
+    'timezone alignment', 'time zone overlap', 'timezone compatible',
+    'gmt-3', 'gmt-4', 'gmt-5', 'gmt-6', 'utc-3', 'utc-4', 'utc-5', 'utc-6',
+    'est compatible', 'pst overlap', 'us timezone', 'american timezone',
+    'timezone friendly', 'working hours overlap', 'overlap with us',
+    
+    # Idioma
+    'spanish', 'spanish speaking', 'spanish speaker', 'bilingual',
+    'english and spanish', 'fluent in spanish', 'native spanish',
+    'portuguese', 'portuguese speaking', 'spanish/english',
+    
+    # Región
+    'latin america', 'latam', 'latinoamerica', 'south america',
+    'central america', 'americas', 'western hemisphere',
+    
+    # Países específicos
+    'argentina', 'argentine', 'buenos aires', 'argentina-based',
+    'chile', 'chilean', 'santiago', 'chile-based',
+    'colombia', 'colombian', 'bogota', 'medellin', 'colombia-based',
+    'mexico', 'mexican', 'mexico city', 'cdmx', 'mexico-based',
+    'peru', 'peruvian', 'lima', 'peru-based',
+    'brazil', 'brazilian', 'sao paulo', 'rio', 'brazil-based',
+    'uruguay', 'uruguayan', 'montevideo', 'uruguay-based',
+    'costa rica', 'costa rican', 'san jose', 'costa rica-based',
+    'ecuador', 'ecuadorian', 'quito', 'guayaquil',
+    'bolivia', 'bolivian', 'la paz',
+    'paraguay', 'paraguayan', 'asuncion',
+    'venezuela', 'venezuelan', 'caracas',
+    
+    # Preferencias
+    'latam only', 'latam preferred', 'latam candidates', 'latam talent',
+    'latin american candidates', 'south american candidates',
+    'based in latam', 'located in latam', 'latam residents',
+    'must be in latam', 'latam location required', 'latam remote',
+    'remote latam', 'remote from latam', 'work from latam',
+    
+    # Beneficios para LatAm
+    'competitive salary for latam', 'usd salary', 'paid in usd',
+    'dollar salary', 'international salary', 'global salary'
 ]
 
 # Configuración de Business Intelligence
@@ -1232,38 +1338,75 @@ def main():
     processed_count = get_processed_count()
     print(f"📊 Ofertas procesadas anteriormente: {processed_count}")
     
-    print("\n📋 Criterios de búsqueda:")
-    print("  - Puesto: Software Engineer")
-    print("  - Ubicación: Latin America")
-    print("  - Tipo: Remote")
-    print("  - Enfoque: Startups")
-    print("  - Plataformas: Greenhouse, Lever, BambooHR")
+    # Búsquedas múltiples en inglés con diferentes términos
+    search_queries = [
+        "Software Engineer remote startup",
+        "Full Stack Developer remote",
+        "Backend Engineer remote startup", 
+        "Frontend Developer remote",
+        "DevOps Engineer remote",
+        "Site Reliability Engineer SRE remote",
+        "Data Engineer remote",
+        "Machine Learning Engineer remote",
+        "Python Developer remote",
+        "Node.js Developer remote",
+        "React Developer remote",
+        "Go Developer remote",
+        "Rust Engineer remote"
+    ]
+    
+    print("\n📋 Búsquedas configuradas:")
+    for i, query in enumerate(search_queries[:5], 1):  # Mostrar solo las primeras 5
+        print(f"  {i}. {query}")
+    print(f"  ... y {len(search_queries) - 5} más")
+    print(f"  - Ubicación: Remote/Global")
+    print(f"  - Plataformas: {len(ALLOWED_PLATFORMS)} ATS incluyendo Greenhouse, Lever, Workday, etc.")
     print()
     
-    # 1. Buscar trabajos
-    jobs = search_jobs(
-        query="Software Engineer startup",
-        location="Latin America",
-        remote_jobs_only=True,
-        num_pages=2  # Buscar en 2 páginas para tener más resultados
-    )
+    # 1. Buscar trabajos con múltiples queries
+    all_jobs = []
+    for query in search_queries[:3]:  # Limitar a 3 búsquedas para no exceder límite de API
+        print(f"\n🔍 Búsqueda: '{query}'")
+        jobs = search_jobs(
+            query=query,
+            location="",  # Sin filtro de ubicación específico
+            remote_jobs_only=True,
+            num_pages=1
+        )
+        if jobs:
+            all_jobs.extend(jobs)
+            print(f"  ✅ {len(jobs)} resultados")
+        time.sleep(2)  # Pausa entre búsquedas
     
-    if not jobs:
+    # Eliminar duplicados por job_id
+    seen_ids = set()
+    unique_jobs = []
+    for job in all_jobs:
+        if job['job_id'] not in seen_ids:
+            seen_ids.add(job['job_id'])
+            unique_jobs.append(job)
+    
+    print(f"\n📊 Total encontrado: {len(all_jobs)} ofertas ({len(unique_jobs)} únicas)")
+    
+    if not unique_jobs:
         print("❌ No se encontraron trabajos")
         return
     
     # 2. Filtrar por plataforma ATS
-    filtered_jobs = filter_jobs_by_platform(jobs)
+    filtered_jobs = filter_jobs_by_platform(unique_jobs)
+    print(f"🏢 Filtradas por ATS: {len(filtered_jobs)} ofertas")
     
     if not filtered_jobs:
-        print("❌ No se encontraron trabajos en las plataformas especificadas")
+        print("⚠️ No se encontraron trabajos en las plataformas ATS especificadas")
+        print("💡 Tip: Las ofertas encontradas usan otras plataformas. Considera ampliar ALLOWED_PLATFORMS")
         return
     
     # 3. Filtrar por startups
     startup_jobs = filter_startup_jobs(filtered_jobs)
     
     # 4. Filtrar trabajos nuevos (no procesados previamente)
-    new_jobs = filter_new_jobs(startup_jobs)
+    # Simplificado: filter_new_jobs usa is_job_processed internamente
+    new_jobs = [job for job in startup_jobs if not is_job_processed(job['job_id'])]
     
     if not new_jobs:
         print("✅ No hay nuevas ofertas. Todas las ofertas encontradas ya fueron procesadas anteriormente.")
