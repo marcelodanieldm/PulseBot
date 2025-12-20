@@ -1,6 +1,176 @@
-# 🚀 Changelog - Reputation Check Feature
+# 🚀 Changelog - PulseBot
 
-## ✨ Nuevas Funcionalidades Añadidas
+---
+
+## [2.0.0] - 2025-12-20 🎉
+
+### ✨ SISTEMA DE CLASIFICACIÓN INTELIGENTE
+
+#### 🏷️ Clasificación Automática por Categorías
+- **4 categorías principales** con 40+ keywords
+  - 🚀 **STARTUP**: Series A/B, Equity, VC, SaaS, Fast-growing (13 keywords)
+  - 🏢 **FACTORY/STAFFING**: Outsourcing, Nearshore, Consultancy (12 keywords)
+  - 💳 **FINTECH/AI**: Fintech, Crypto, AI, ML, Blockchain (14 keywords)
+  - 📋 **GENERAL**: Ofertas que no encajan en las anteriores
+- **Detección case-insensitive** en título, descripción y company type
+- **Función**: `classify_job(job) -> str`
+
+#### 🔥 Filtro de LatAm Match Perfecto
+- **18 keywords específicas** de Latinoamérica
+  - Timezones: GMT-3, GMT-5, timezone alignment
+  - Idioma: Spanish, Spanish speaking
+  - Región: LatAm residents, Latin America, South America
+  - Países: Argentina, Chile, Colombia, Mexico, Peru, Brazil
+- **Emoji visual** (🔥) en el título del mensaje
+- **Flag booleano** guardado en base de datos
+- **Función**: `is_latam_match(job) -> bool`
+
+#### 💾 Migración a Base de Datos SQLite
+- **Archivo**: `processed_jobs.db` (reemplaza `sent_jobs.json`)
+- **Tabla**: `processed_jobs`
+  ```sql
+  CREATE TABLE processed_jobs (
+    job_id TEXT PRIMARY KEY,
+    company_name TEXT,
+    job_title TEXT,
+    processed_at TEXT,
+    category TEXT,
+    is_latam_match INTEGER
+  )
+  ```
+- **Ventajas sobre JSON**:
+  - ✅ Consultas SQL avanzadas
+  - ✅ Índices para búsquedas rápidas (job_id PRIMARY KEY)
+  - ✅ Metadatos enriquecidos
+  - ✅ Escalable a miles de registros
+  - ✅ Integridad de datos garantizada
+- **Funciones nuevas**:
+  - `init_database()`: Inicializa la tabla
+  - `is_job_processed(job_id)`: Verifica duplicados
+  - `save_processed_job(...)`: Guarda con metadatos completos
+  - `get_processed_count()`: Total de ofertas procesadas
+
+#### 🎯 Detección de Nichos Tecnológicos
+- **7 nichos detectables**:
+  - SaaS (saas, software as a service, cloud platform)
+  - Fintech (fintech, payments, banking)
+  - Crypto/Web3 (crypto, blockchain, web3, defi, nft)
+  - AI/ML (ai, machine learning, llm, deep learning)
+  - E-commerce (ecommerce, marketplace, retail)
+  - HealthTech (healthtech, healthcare, telemedicine)
+  - EdTech (edtech, education, learning platform)
+- **Función**: `detect_niche(job) -> str`
+- **Muestra en mensaje**: `💰 Nicho: {nicho}`
+
+#### 📱 Nuevo Formato de Mensaje en Telegram
+```
+🔥 [🚀 STARTUP] Senior Python Engineer
+
+🏢 Empresa: StartupXYZ
+💰 Nicho: SaaS
+📍 Ubicación: Remote, Argentina
+💰 $80,000 - $120,000 USD
+🛠️ ATS: Lever
+
+📊 Análisis de Empresa:
+   • Vacantes activas: 8
+   • Sentimiento: Positivo
+
+🔥 Posibilidad de contratación: Alta
+
+🔗 Aplicar aquí: https://...
+
+ID: a1b2c3d4e5f6
+```
+
+**Cambios en el mensaje:**
+- ✅ Emoji 🔥 para LatAm matches (condicional)
+- ✅ Categoría con emoji en el header
+- ✅ Campo "Nicho" nuevo
+- ✅ Job ID corto para referencia
+- ✅ Mejor organización visual
+
+### 🧪 Testing y Validación
+
+#### Suite de Tests Completa
+- **Archivo**: `test_clasificacion.py`
+- **4 tests automatizados**:
+  1. ✅ Base de Datos SQLite
+  2. ✅ Sistema de Clasificación
+  3. ✅ Generación de Job IDs
+  4. ✅ Formato de Mensajes
+- **Resultado**: 4/4 tests pasando (100%)
+- **Jobs de prueba**: 4 casos diferentes (Startup, Factory, Fintech/AI, General)
+
+### 📚 Documentación Nueva
+
+#### MEJORAS_CLASIFICACION.md (800+ líneas)
+- Explicación detallada de cada categoría
+- Keywords completas por categoría
+- Ejemplos de clasificación con input/output
+- Guía de personalización
+- Casos de uso
+- Troubleshooting
+- Estadísticas y queries SQL
+
+#### CONFIGURACION_SECRETS.md
+- Tutorial paso a paso para obtener API keys
+- Guía visual para configurar GitHub Secrets
+- Troubleshooting de errores comunes
+- Checklist interactivo
+
+### 🔧 Cambios en el Código
+
+#### Funciones Modificadas
+- `format_job_message()`: Retorna tupla `(message, category, is_latam)`
+- `send_to_telegram()`: Guarda en DB automáticamente después de enviar
+- `filter_new_jobs()`: Usa SQLite en lugar de Set de IDs
+- `main()`: Inicializa DB, muestra estadísticas mejoradas
+
+#### Código Eliminado
+- `load_sent_jobs()`: Reemplazado por `is_job_processed()`
+- `save_sent_jobs()`: Reemplazado por `save_processed_job()`
+- Lógica de Set para tracking de IDs
+
+#### Diccionarios Nuevos
+```python
+CATEGORIES = {
+    '🚀 STARTUP': [...],
+    '🏢 FACTORY/STAFFING': [...],
+    '💳 FINTECH/AI': [...]
+}
+
+LATAM_KEYWORDS = [
+    'timezone alignment', 'gmt-3', 'gmt-5',
+    'spanish', 'latam residents', ...
+]
+```
+
+### 📊 Estadísticas de Cambios
+- **Líneas agregadas**: ~573
+- **Líneas eliminadas**: ~76
+- **Archivos nuevos**: 4
+- **Archivos modificados**: 1
+- **Funciones nuevas**: 7
+- **Total keywords**: 58+ (40 categorías + 18 LatAm)
+
+### 🐛 Fixes
+- Eliminado código duplicado en `format_job_message()`
+- Corregido manejo de None en clasificación
+- Actualizado return type de `format_job_message()` a tupla
+- Mejorado manejo de excepciones en todas las nuevas funciones
+
+### ⚡ Mejoras de Performance
+- SQLite más rápido que JSON para grandes volúmenes
+- Índice automático en `job_id` (PRIMARY KEY)
+- Consultas optimizadas con prepared statements
+- Menos I/O de disco (una conexión por operación)
+
+---
+
+## [1.2.0] - 2025-12-20
+
+### 🛡️ Manejo Robusto de Errores
 
 ### 1. **Búsqueda de Reviews de Empleados** 🔍
 - **Función**: `search_company_reviews(company_name)`
