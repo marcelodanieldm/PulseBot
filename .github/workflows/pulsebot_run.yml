@@ -1,9 +1,9 @@
 name: PulseBot Automated Job Search
 
 on:
-  # Ejecutar cada 4 horas
+  # Ejecutar cada 8 horas
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 */8 * * *'
   
   # Permitir ejecución manual desde GitHub UI
   workflow_dispatch:
