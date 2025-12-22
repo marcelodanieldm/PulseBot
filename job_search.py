@@ -1461,13 +1461,13 @@ def main():
     print(f"  - Latam (13): Mismos roles enfocados en América Latina")
     print(f"  - Otras regiones: Europa, USA, LatAm países específicos (8)")
     print(f"  - Plataformas: {len(ALLOWED_PLATFORMS)} ATS incluyendo Greenhouse, Lever, Workday, etc.")
-    print(f"\n  Ejecutando primeras 5 búsquedas...")
+    print(f"\n  Ejecutando primeras 20 búsquedas...")
     print()
     
-    # 1. Buscar trabajos con múltiples queries (aumentado a 5 para mayor cobertura)
+    # 1. Buscar trabajos con múltiples queries (aumentado a 20 para mayor cobertura)
     all_jobs = []
-    for idx, query in enumerate(search_queries[:5], 1):  # Ejecutar 5 búsquedas
-        print(f"\n🔍 [{idx}/5] Búsqueda: '{query}'")
+    for idx, query in enumerate(search_queries[:20], 1):  # Ejecutar 20 búsquedas
+        print(f"\n🔍 [{idx}/20] Búsqueda: '{query}'")
         jobs = search_jobs(
             query=query,
             location="",  # Sin filtro de ubicación específico (ya está en el query)
@@ -1517,8 +1517,8 @@ def main():
     
     print(f"✨ Encontradas {len(new_jobs)} ofertas nuevas para enviar")
     
-    # 5. Limitar a las primeras 5
-    jobs_to_send = new_jobs[:5]
+    # 5. Limitar a las primeras 20
+    jobs_to_send = new_jobs[:20]
     
     print(f"\n📤 Enviando {len(jobs_to_send)} ofertas a Telegram...\n")
     
