@@ -17,6 +17,14 @@ from duckduckgo_search import DDGS
 from textblob import TextBlob
 from bs4 import BeautifulSoup
 
+# Importar RemoteOK source
+try:
+    from remote_ok_source import RemoteOKSource
+    REMOTEOK_AVAILABLE = True
+except ImportError:
+    REMOTEOK_AVAILABLE = False
+    print("⚠️ RemoteOK source no disponible")
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -1454,20 +1462,25 @@ def main():
         "Engineer remote Peru"
     ]
     
-    print("\n📋 Búsquedas configuradas:")
-    print(f"  Total: {len(search_queries)} queries diferentes")
-    print(f"  🌍🌎 MÁXIMA PRIORIDAD: Worldwide + Latam (primeras 26 búsquedas)")
-    print(f"  - Worldwide (13): Software Engineer, Full Stack, QA, Backend, DevOps, Frontend, Python, React, Solidity, Ruby, PM, Blockchain, Manual QA")
-    print(f"  - Latam (13): Mismos roles enfocados en América Latina")
-    print(f"  - Otras regiones: Europa, USA, LatAm países específicos (8)")
-    print(f"  - Plataformas: {len(ALLOWED_PLATFORMS)} ATS incluyendo Greenhouse, Lever, Workday, etc.")
-    print(f"\n  Ejecutando primeras 20 búsquedas...")
-    print()
+    print("\n📋 Estrategia Multi-Source:")
+    print(f"  📊 Total queries configuradas: {len(search_queries)}")
+    print(f"  ")
+    print(f"  🔥 FUENTE 1: JSearch API (10 búsquedas)")
+    print(f"     - Conservando cuota (85% usado, quedan ~15 requests)")
+    print(f"     - Prioridad: Worldwide + Latam principales")
+    print(f"  ")
+    print(f"  🌐 FUENTE 2: RemoteOK API (5 roles, GRATIS)")
+    print(f"     - Sin límites, sin autenticación")
+    print(f"     - Roles: Python, Backend, Fullstack, DevOps, QA")
+    print(f"  ")
+    print(f"  ✅ Total esperado: ~100-150 ofertas por ejecución")
+    print(f"  🏢 Filtro ATS: {len(ALLOWED_PLATFORMS)} plataformas")
+
     
-    # 1. Buscar trabajos con múltiples queries (aumentado a 20 para mayor cobertura)
+    # 1. Buscar trabajos con múltiples queries (REDUCIDO a 10 para conservar cuota API)
     all_jobs = []
-    for idx, query in enumerate(search_queries[:20], 1):  # Ejecutar 20 búsquedas
-        print(f"\n🔍 [{idx}/20] Búsqueda: '{query}'")
+    for idx, query in enumerate(search_queries[:10], 1):  # REDUCIDO: 20 -> 10
+        print(f"\n🔍 [{idx}/10] JSearch: '{query}'")
         jobs = search_jobs(
             query=query,
             location="",  # Sin filtro de ubicación específico (ya está en el query)
@@ -1480,6 +1493,31 @@ def main():
         else:
             print(f"  ⚠️ Sin resultados")
         time.sleep(2)  # Pausa entre búsquedas
+    
+    # 1.5 Complementar con RemoteOK (API GRATUITA)
+    if REMOTEOK_AVAILABLE:
+        print(f"\n🌐 Complementando con RemoteOK (API gratuita, sin límites)...")
+        try:
+            remoteok = RemoteOKSource()
+            
+            # Buscar roles principales en RemoteOK
+            priority_roles = ['python', 'backend', 'fullstack', 'devops', 'qa']
+            remoteok_jobs = []
+            
+            for role in priority_roles:
+                print(f"  🔍 RemoteOK: {role}")
+                role_jobs = remoteok.search_by_role(role)
+                remoteok_jobs.extend(role_jobs)
+                time.sleep(1)  # Rate limiting cortés
+            
+            # Agregar a la lista principal
+            all_jobs.extend(remoteok_jobs)
+            print(f"\n  ✅ RemoteOK aportó {len(remoteok_jobs)} ofertas adicionales")
+            
+        except Exception as e:
+            print(f"  ⚠️ Error en RemoteOK (continuando sin él): {e}")
+    else:
+        print(f"\n  ⚠️ RemoteOK no disponible. Instala con: pip install requests")
     
     # Eliminar duplicados por job_id
     seen_ids = set()
