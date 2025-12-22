@@ -1368,9 +1368,9 @@ def main():
     print(f"📊 Ofertas procesadas anteriormente: {processed_count}")
     
     # Búsquedas múltiples en inglés con diferentes roles y ubicaciones
-    # PRIORIDAD: Búsquedas worldwide primero
+    # PRIORIDAD: Búsquedas worldwide y Latam primero
     search_queries = [
-        # 🌍 WORLDWIDE - MÁXIMA PRIORIDAD
+        # 🌍 WORLDWIDE + LATAM - MÁXIMA PRIORIDAD
         "Software Engineer remote worldwide",
         "Full Stack Developer remote anywhere",
         "QA Engineer remote global",
@@ -1384,6 +1384,21 @@ def main():
         "Project Manager remote worldwide",
         "Blockchain Developer remote anywhere",
         "Manual QA Tester remote global",
+        
+        # 🌎 LATAM / LATIN AMERICA - MÁXIMA PRIORIDAD
+        "Software Engineer remote Latam",
+        "Full Stack Developer remote Latin America",
+        "Backend Engineer remote Latam",
+        "QA Engineer remote Latin America",
+        "DevOps Engineer remote Latam",
+        "Frontend Developer remote Latin America",
+        "Python Developer remote Latam",
+        "React Developer remote Latin America",
+        "Solidity Developer remote Latam",
+        "Ruby on Rails Developer remote Latin America",
+        "Project Manager remote Latam",
+        "Blockchain Developer remote Latin America",
+        "Manual QA Tester remote Latam",
         
         # Software Engineers
         "Software Engineer remote startup",
@@ -1441,12 +1456,12 @@ def main():
     
     print("\n📋 Búsquedas configuradas:")
     print(f"  Total: {len(search_queries)} queries diferentes")
-    print(f"  🌍 PRIORIDAD: Worldwide/Anywhere (primeras 13 búsquedas)")
-    print(f"  - Roles: Software Engineer, Full Stack, QA, Backend, DevOps, Frontend, Python, React")
-    print(f"  - Nuevos: Solidity, Ruby on Rails, Project Manager, Blockchain, Manual QA")
-    print(f"  - Otras regiones: Europa, USA, LatAm (8 países)")
+    print(f"  🌍🌎 MÁXIMA PRIORIDAD: Worldwide + Latam (primeras 26 búsquedas)")
+    print(f"  - Worldwide (13): Software Engineer, Full Stack, QA, Backend, DevOps, Frontend, Python, React, Solidity, Ruby, PM, Blockchain, Manual QA")
+    print(f"  - Latam (13): Mismos roles enfocados en América Latina")
+    print(f"  - Otras regiones: Europa, USA, LatAm países específicos (8)")
     print(f"  - Plataformas: {len(ALLOWED_PLATFORMS)} ATS incluyendo Greenhouse, Lever, Workday, etc.")
-    print(f"\n  Ejecutando primeras 5 búsquedas (todas worldwide)...")
+    print(f"\n  Ejecutando primeras 5 búsquedas...")
     print()
     
     # 1. Buscar trabajos con múltiples queries (aumentado a 5 para mayor cobertura)
