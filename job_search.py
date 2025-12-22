@@ -1379,6 +1379,11 @@ def main():
         "Frontend Developer remote worldwide",
         "Python Developer remote anywhere",
         "React Developer remote worldwide",
+        "Solidity Developer remote worldwide",
+        "Ruby on Rails Developer remote anywhere",
+        "Project Manager remote worldwide",
+        "Blockchain Developer remote anywhere",
+        "Manual QA Tester remote global",
         
         # Software Engineers
         "Software Engineer remote startup",
@@ -1436,8 +1441,9 @@ def main():
     
     print("\n📋 Búsquedas configuradas:")
     print(f"  Total: {len(search_queries)} queries diferentes")
-    print(f"  🌍 PRIORIDAD: Worldwide/Anywhere (primeras 8 búsquedas)")
+    print(f"  🌍 PRIORIDAD: Worldwide/Anywhere (primeras 13 búsquedas)")
     print(f"  - Roles: Software Engineer, Full Stack, QA, Backend, DevOps, Frontend, Python, React")
+    print(f"  - Nuevos: Solidity, Ruby on Rails, Project Manager, Blockchain, Manual QA")
     print(f"  - Otras regiones: Europa, USA, LatAm (8 países)")
     print(f"  - Plataformas: {len(ALLOWED_PLATFORMS)} ATS incluyendo Greenhouse, Lever, Workday, etc.")
     print(f"\n  Ejecutando primeras 5 búsquedas (todas worldwide)...")
