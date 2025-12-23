@@ -1,0 +1,63 @@
+name: 🤖 Auto Job Search - PulseBot
+
+on:
+  # Ejecutar automáticamente cada 6 horas
+  schedule:
+    - cron: '0 */6 * * *'  # Cada 6 horas: 00:00, 06:00, 12:00, 18:00 UTC
+  
+  # También permitir ejecución manual
+  workflow_dispatch:
+
+jobs:
+  search-and-send:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v3
+      
+      - name: 🐍 Configurar Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Instalar dependencias
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: 🗄️ Restaurar base de datos (si existe)
+        uses: actions/cache@v3
+        with:
+          path: processed_jobs.db
+          key: pulsebot-db-${{ github.run_number }}
+          restore-keys: |
+            pulsebot-db-
+      
+      - name: 🔍 Ejecutar búsqueda de trabajos
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "🚀 Iniciando búsqueda automática de trabajos..."
+          python job_search.py
+          echo "✅ Búsqueda completada"
+      
+      - name: 💾 Guardar base de datos actualizada
+        uses: actions/cache/save@v3
+        if: always()
+        with:
+          path: processed_jobs.db
+          key: pulsebot-db-${{ github.run_number }}
+      
+      - name: 📊 Subir logs como artefacto
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: job-search-logs-${{ github.run_number }}
+          path: |
+            processed_jobs.db
+            *.log
+          retention-days: 7

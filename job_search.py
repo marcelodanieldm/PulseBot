@@ -56,9 +56,11 @@ ALLOWED_PLATFORMS = [
     'careers.', 'jobs.', 'apply.', 'recruiting.', 'talent.',
     'opportunities.', 'join.', 'work-with-us', 'we-are-hiring',
     
-    # Plataformas específicas de IT
+    # Plataformas específicas de IT y Job Boards
     'stackoverflow.com/jobs', 'angel.co', 'wellfound.com',
-    'ycombinator.com', 'remoteok.io', 'weworkremotely.com'
+    'ycombinator.com', 'remoteok.io', 'weworkremotely.com',
+    'remoteok.com', 'remote-jobs', 'jobs/', 'hire/', 'apply/',
+    'linkedin.com/jobs', 'indeed.com', 'glassdoor.com'
 ]
 
 # Base de datos para tracking de ofertas enviadas
@@ -325,59 +327,18 @@ def get_processed_count() -> int:
 
 def get_glassdoor_rating(company_name: str) -> Optional[float]:
     """
-    Busca el rating de Glassdoor usando DuckDuckGo y extrae el valor numérico
+    DESHABILITADO: Búsqueda de rating de Glassdoor para evitar rate limits
+    Retorna None siempre (el sistema funciona sin ratings)
     
     Args:
         company_name: Nombre de la empresa
     
     Returns:
-        Rating como float (ej: 4.2) o None si no se encuentra
+        None (deshabilitado para evitar rate limits)
     """
-    if not company_name:
-        return None
-    
-    try:
-        print(f"  🔍 Buscando rating de Glassdoor para {company_name}...")
-        
-        # Buscar en DuckDuckGo
-        query = f"{company_name} Glassdoor rating reviews"
-        
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
-        
-        if not results:
-            print(f"  ⚠️ No se encontraron resultados de Glassdoor")
-            return None
-        
-        # Buscar patrón numérico en los primeros resultados
-        # Patrones: "4.2/5", "3.8 out of 5", "Rating: 4.5", "4.2★"
-        rating_patterns = [
-            r'(\d\.\d)\s*/\s*5',  # 4.2/5
-            r'(\d\.\d)\s+out of 5',  # 4.2 out of 5
-            r'rating[:\s]+(\d\.\d)',  # rating: 4.2
-            r'(\d\.\d)\s*★',  # 4.2★
-            r'(\d\.\d)\s*stars',  # 4.2 stars
-        ]
-        
-        for result in results:
-            text = result.get('body', '') + ' ' + result.get('title', '')
-            text = text.lower()
-            
-            for pattern in rating_patterns:
-                match = re.search(pattern, text)
-                if match:
-                    rating = float(match.group(1))
-                    # Validar rango (0.0 - 5.0)
-                    if 0.0 <= rating <= 5.0:
-                        print(f"  ✅ Rating encontrado: {rating}/5")
-                        return rating
-        
-        print(f"  ⚠️ No se pudo extraer rating numérico")
-        return None
-        
-    except Exception as e:
-        print(f"  ⚠️ Error buscando rating de Glassdoor: {e}")
-        return None
+    # OPTIMIZACIÓN: Deshabilitado para evitar rate limits de DuckDuckGo
+    # El Pulse Score se calcula con otros indicadores disponibles
+    return None
 
 
 def check_growth_indicator(company_name: str) -> Tuple[int, bool]:
@@ -1143,11 +1104,22 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
         except Exception as e:
             print(f"  ⚠️ Error obteniendo reviews: {e}")
         
-        # 2. Analizar sentimiento (con protección)
+        # 2. Analizar sentimiento - OPTIMIZADO: Solo análisis local (sin APIs externas)
         sentiment = "Neutral"
         try:
             job_description = job.get('job_description', '')
-            sentiment = analyze_company_sentiment(company, job_description)
+            # Análisis simple de palabras clave en lugar de APIs externas
+            positive_words = ['great', 'excellent', 'amazing', 'innovative', 'growing', 'exciting']
+            negative_words = ['urgent', '24/7', 'pressure', 'tight deadline']
+            
+            desc_lower = job_description.lower()
+            positive_count = sum(1 for word in positive_words if word in desc_lower)
+            negative_count = sum(1 for word in negative_words if word in desc_lower)
+            
+            if positive_count > negative_count:
+                sentiment = "Positive"
+            elif negative_count > positive_count:
+                sentiment = "Negative"
         except Exception as e:
             print(f"  ⚠️ Error en análisis de sentimiento: {e}")
         
@@ -1170,12 +1142,8 @@ def format_job_message(job: Dict, all_jobs: List[Dict] = None) -> str:
         # === BUSINESS INTELLIGENCE ===
         print(f"  🧠 Calculando Business Intelligence...")
         
-        # 5. Obtener Glassdoor Rating
-        glassdoor_rating = None
-        try:
-            glassdoor_rating = get_glassdoor_rating(company)
-        except Exception as e:
-            print(f"  ⚠️ Error obteniendo rating de Glassdoor: {e}")
+        # 5. Glassdoor Rating - DESHABILITADO para evitar rate limits
+        glassdoor_rating = None  # Sin búsquedas externas
         
         # 6. Verificar indicador de crecimiento
         growth_count = 0
@@ -1375,10 +1343,10 @@ def main():
     processed_count = get_processed_count()
     print(f"📊 Ofertas procesadas anteriormente: {processed_count}")
     
-    # Búsquedas múltiples en inglés con diferentes roles y ubicaciones
+    # Búsquedas múltiples en inglés y español con diferentes roles y ubicaciones
     # PRIORIDAD: Búsquedas worldwide y Latam primero
     search_queries = [
-        # 🌍 WORLDWIDE + LATAM - MÁXIMA PRIORIDAD
+        # 🌍 WORLDWIDE + GLOBAL - MÁXIMA PRIORIDAD
         "Software Engineer remote worldwide",
         "Full Stack Developer remote anywhere",
         "QA Engineer remote global",
@@ -1392,6 +1360,10 @@ def main():
         "Project Manager remote worldwide",
         "Blockchain Developer remote anywhere",
         "Manual QA Tester remote global",
+        "TypeScript Developer remote worldwide",
+        "Java Developer remote anywhere",
+        "Mobile Developer remote global",
+        "Data Scientist remote worldwide",
         
         # 🌎 LATAM / LATIN AMERICA - MÁXIMA PRIORIDAD
         "Software Engineer remote Latam",
@@ -1407,18 +1379,42 @@ def main():
         "Project Manager remote Latam",
         "Blockchain Developer remote Latin America",
         "Manual QA Tester remote Latam",
+        "Node.js Developer remote Latin America",
+        "Java Developer remote Latam",
+        "TypeScript Developer remote Latin America",
+        
+        # 🇪🇸 BÚSQUEDAS EN ESPAÑOL - NUEVO
+        "Ingeniero de Software remoto",
+        "Desarrollador Full Stack remoto",
+        "Desarrollador Backend remoto",
+        "Desarrollador Frontend remoto",
+        "Ingeniero QA remoto",
+        "Desarrollador Python remoto",
+        "Desarrollador React remoto",
+        "Ingeniero DevOps remoto",
+        "Desarrollador Node.js remoto",
+        "Desarrollador Java remoto",
+        "Ingeniero de Datos remoto",
+        "Desarrollador Web3 remoto",
         
         # Software Engineers
         "Software Engineer remote startup",
         "Full Stack Developer remote",
         "Backend Engineer remote startup", 
         "Frontend Developer remote",
+        "Senior Software Engineer remote",
+        "Junior Developer remote",
+        "Mid-Level Developer remote",
         
         # Infrastructure & DevOps
         "DevOps Engineer remote",
         "Site Reliability Engineer SRE remote",
         "Data Engineer remote",
         "Machine Learning Engineer remote",
+        "Cloud Engineer remote",
+        "Kubernetes Engineer remote",
+        "Infrastructure Engineer remote",
+        "Platform Engineer remote",
         
         # Language-specific
         "Python Developer remote",
@@ -1426,25 +1422,53 @@ def main():
         "React Developer remote",
         "Go Developer remote",
         "Rust Engineer remote",
+        "TypeScript Developer remote",
+        "Java Developer remote",
+        "C# Developer remote",
+        "PHP Developer remote",
+        "Ruby Developer remote",
+        "Elixir Developer remote",
+        "Scala Developer remote",
         
-        # QA Engineers - NUEVO
+        # QA Engineers - EXPANDIDO
         "QA Engineer remote",
         "QA Automation Engineer remote",
         "QA Manual Tester remote",
         "Test Automation Engineer remote",
         "Quality Assurance Engineer remote",
         "SDET Software Development Engineer in Test remote",
+        "Performance Test Engineer remote",
+        "Security Test Engineer remote",
         
-        # Blockchain/Web3 - NUEVO
+        # Blockchain/Web3 - EXPANDIDO
         "Solidity Developer remote",
         "Blockchain Developer remote",
         "Web3 Engineer remote",
         "Smart Contract Developer remote",
+        "Crypto Developer remote",
+        "DeFi Developer remote",
+        "NFT Developer remote",
+        
+        # Mobile Development - NUEVO
+        "Mobile Developer remote",
+        "iOS Developer remote",
+        "Android Developer remote",
+        "React Native Developer remote",
+        "Flutter Developer remote",
+        
+        # Data & AI/ML - NUEVO
+        "Data Scientist remote",
+        "ML Engineer remote",
+        "AI Engineer remote",
+        "Data Analyst remote",
+        "Business Intelligence Analyst remote",
         
         # Búsquedas por región - Europa
         "Software Engineer remote Europe",
         "Developer remote European Union",
         "QA Engineer remote Europe",
+        "Backend Developer remote Spain",
+        "Frontend Developer remote Portugal",
         
         # Búsquedas por región - USA
         "Software Engineer remote United States",
@@ -1459,60 +1483,102 @@ def main():
         "Developer remote Argentina",
         "Software Engineer remote Uruguay",
         "Developer remote Costa Rica",
-        "Engineer remote Peru"
+        "Engineer remote Peru",
+        
+        # Búsquedas por tecnología - NUEVO
+        "Django Developer remote",
+        "FastAPI Developer remote",
+        "Spring Boot Developer remote",
+        "Angular Developer remote",
+        "Vue.js Developer remote",
+        "GraphQL Developer remote",
+        "Docker Engineer remote",
+        "AWS Engineer remote",
+        "Azure Engineer remote"
     ]
     
-    print("\n📋 Estrategia Multi-Source:")
+    print("\n📋 Estrategia Multi-Source OPTIMIZADA (Costo Cero):")
     print(f"  📊 Total queries configuradas: {len(search_queries)}")
     print(f"  ")
-    print(f"  🔥 FUENTE 1: JSearch API (10 búsquedas)")
-    print(f"     - Conservando cuota (85% usado, quedan ~15 requests)")
-    print(f"     - Prioridad: Worldwide + Latam principales")
-    print(f"  ")
-    print(f"  🌐 FUENTE 2: RemoteOK API (5 roles, GRATIS)")
+    print(f"  🌐 FUENTE PRINCIPAL: RemoteOK API (100% GRATIS)")
     print(f"     - Sin límites, sin autenticación")
-    print(f"     - Roles: Python, Backend, Fullstack, DevOps, QA")
+    print(f"     - Obtiene TODAS las ofertas remotas disponibles")
+    print(f"     - Filtrado inteligente por keywords (ES + EN)")
+    print(f"     - Prioridad: Latam + Worldwide")
     print(f"  ")
-    print(f"  ✅ Total esperado: ~100-150 ofertas por ejecución")
+    print(f"  💡 JSearch API: DESHABILITADO (para evitar rate limits)")
+    print(f"     - Activar solo si necesitas más fuentes")
+    print(f"     - Cambiar jsearch_enabled = True en el código")
+    print(f"  ")
+    print(f"  ✅ Total esperado: ~80-150 ofertas por ejecución")
     print(f"  🏢 Filtro ATS: {len(ALLOWED_PLATFORMS)} plataformas")
 
     
-    # 1. Buscar trabajos con múltiples queries (REDUCIDO a 10 para conservar cuota API)
-    all_jobs = []
-    for idx, query in enumerate(search_queries[:10], 1):  # REDUCIDO: 20 -> 10
-        print(f"\n🔍 [{idx}/10] JSearch: '{query}'")
-        jobs = search_jobs(
-            query=query,
-            location="",  # Sin filtro de ubicación específico (ya está en el query)
-            remote_jobs_only=True,
-            num_pages=1
-        )
-        if jobs:
-            all_jobs.extend(jobs)
-            print(f"  ✅ {len(jobs)} resultados")
-        else:
-            print(f"  ⚠️ Sin resultados")
-        time.sleep(2)  # Pausa entre búsquedas
+    # 1. JSearch API - DESHABILITADO por defecto (cambiar jsearch_enabled=True para activar)
+    jsearch_enabled = False  # Cambiar a True si tienes cuota disponible
     
-    # 1.5 Complementar con RemoteOK (API GRATUITA)
+    all_jobs = []
+    if jsearch_enabled:
+        print("\n🔥 Búsquedas en JSearch API...")
+        for idx, query in enumerate(search_queries[:5], 1):  # Solo 5 para conservar cuota
+            print(f"\n🔍 [{idx}/5] JSearch: '{query}'")
+            try:
+                jobs = search_jobs(
+                    query=query,
+                    location="",
+                    remote_jobs_only=True,
+                    num_pages=1
+                )
+                if jobs:
+                    all_jobs.extend(jobs)
+                    print(f"  ✅ {len(jobs)} resultados")
+                else:
+                    print(f"  ⚠️ Sin resultados")
+            except Exception as e:
+                print(f"  ❌ Error en búsqueda: {e}")
+            time.sleep(2)
+    else:
+        print("\n💡 JSearch API deshabilitado (usando solo RemoteOK - gratis)")
+    
+    # 1.5 FUENTE PRINCIPAL: RemoteOK (API GRATUITA, SIN LÍMITES)
     if REMOTEOK_AVAILABLE:
-        print(f"\n🌐 Complementando con RemoteOK (API gratuita, sin límites)...")
+        print(f"\n🌐 Obteniendo ofertas de RemoteOK (API gratuita, sin límites)...")
         try:
             remoteok = RemoteOKSource()
             
-            # Buscar roles principales en RemoteOK
-            priority_roles = ['python', 'backend', 'fullstack', 'devops', 'qa']
-            remoteok_jobs = []
+            # Obtener TODOS los trabajos de RemoteOK
+            print(f"  🔍 Descargando todas las ofertas disponibles...")
+            all_remoteok_jobs = remoteok.search_all_jobs()
             
-            for role in priority_roles:
-                print(f"  🔍 RemoteOK: {role}")
-                role_jobs = remoteok.search_by_role(role)
-                remoteok_jobs.extend(role_jobs)
-                time.sleep(1)  # Rate limiting cortés
-            
-            # Agregar a la lista principal
-            all_jobs.extend(remoteok_jobs)
-            print(f"\n  ✅ RemoteOK aportó {len(remoteok_jobs)} ofertas adicionales")
+            if all_remoteok_jobs:
+                # Filtrar por keywords PRIORITARIAS (LatAm + Tech)
+                priority_keywords = [
+                    # LATAM PRIORITY
+                    'latam', 'latin america', 'argentina', 'chile', 'colombia', 'mexico',
+                    'brazil', 'peru', 'uruguay', 'remote', 'worldwide', 'anywhere',
+                    # Tech roles (inglés)
+                    'python', 'backend', 'fullstack', 'full stack', 'devops', 'qa',
+                    'frontend', 'react', 'node', 'typescript', 'java', 'go', 'rust',
+                    'engineer', 'developer', 'software', 'web3', 'blockchain', 'solidity',
+                    'mobile', 'android', 'ios', 'data', 'ml', 'machine learning',
+                    'django', 'fastapi', 'spring', 'kubernetes', 'docker',
+                    # Tech roles (español)
+                    'desarrollador', 'ingeniero', 'programador', 'remoto'
+                ]
+                
+                filtered_remoteok = remoteok.filter_by_keywords(all_remoteok_jobs, priority_keywords)
+                
+                # Normalizar formato y agregar
+                remoteok_jobs = []
+                for job in filtered_remoteok:
+                    normalized = remoteok.normalize_job(job)
+                    if normalized:
+                        remoteok_jobs.append(normalized)
+                
+                all_jobs.extend(remoteok_jobs)
+                print(f"  ✅ RemoteOK aportó {len(remoteok_jobs)} ofertas filtradas (de {len(all_remoteok_jobs)} totales)")
+            else:
+                print(f"  ⚠️ RemoteOK no devolvió resultados")
             
         except Exception as e:
             print(f"  ⚠️ Error en RemoteOK (continuando sin él): {e}")
@@ -1566,7 +1632,7 @@ def main():
     for idx, job in enumerate(jobs_to_send, 1):
         print(f"[{idx}/{len(jobs_to_send)}] Enviando: {job.get('job_title', 'N/A')} - {job.get('employer_name', 'N/A')}")
         
-        if send_to_telegram(job, jobs):  # Pasar todos los trabajos para contar vacantes
+        if send_to_telegram(job, startup_jobs):  # Pasar startup_jobs para contar vacantes
             success_count += 1
             print(f"  ✅ Enviado y guardado en DB\n")
         else:
