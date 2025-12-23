@@ -21,6 +21,9 @@ jobs:
   search-jobs:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: write  # Required for pushing changes
+    
     steps:
     - name: 📥 Checkout repository
       uses: actions/checkout@v4
